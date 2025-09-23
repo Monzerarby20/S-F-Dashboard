@@ -53,6 +53,7 @@ const addUserSchema = z.object({
   jobTitle: z.string().min(2, "المسمى الوظيفي مطلوب"),
   roleId: z.number().min(1, "يجب اختيار دور"),
   branchId: z.number().optional(),
+  password: z.string().min(6, "كلمة السر يجب أن تكون 6 أحرف على الأقل"),
   isActive: z.boolean().default(true),
 });
 
@@ -106,6 +107,7 @@ export default function AddUserPage() {
       email: "",
       phone: "",
       jobTitle: "",
+      password: "",
       roleId: 5, // Default to cashier role
       branchId: undefined,
       isActive: true,
@@ -336,6 +338,7 @@ export default function AddUserPage() {
                         </FormItem>
                       )}
                     />
+                    
                   </div>
 
                   {/* Additional Settings */}
@@ -364,6 +367,19 @@ export default function AddUserPage() {
                               ))}
                             </SelectContent>
                           </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm">كلمة السر *</FormLabel>
+                          <FormControl>
+                            <Input className="h-9" type="password" placeholder="********" {...field} />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}

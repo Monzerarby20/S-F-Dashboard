@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { ShoppingCart, LayoutDashboard, ShoppingBag, Package, Warehouse, ScanBarcode, Folder, BarChart3, LogOut, Building2, Users, Megaphone, RotateCcw, Shield, Play, QrCode, Store, Settings, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-
+import {signOut} from "@/services/auth";
 const navigationItems = [
   {
     title: "لوحة التحكم",
@@ -82,7 +82,8 @@ export default function Sidebar() {
   const { user } = useAuth();
 
   const handleLogout = () => {
-    window.location.href = "/api/logout";
+    window.location.href = "/";
+    signOut();
   };
 
   return (

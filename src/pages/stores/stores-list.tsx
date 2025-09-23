@@ -14,6 +14,8 @@ import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
+import axios from "axios";
+
 
 import { normalizeArray } from "@/services/normalize";
 
@@ -40,11 +42,23 @@ export default function StoresListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; store?: Store }>({ open: false });
 
-  
-  // Fetch current user's store only
-  const { data: stores = [] , isLoading, error } = useQuery({
-    queryKey: ['/stores/current'],
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL ;
+  // Fetch all stores (admin) or current store (user)
+  const {data: stores = [] , isLoading,error}  = useQuery({
+    queryKey: ['stores'],
+    queryFn: async () => {
+      const response = await axios.get(`${BASE_URL}stores/stores`);
+      return response.data.results;
+    }
+
   });
+  console.log("Fetched stores:", stores);
+  console.log(BASE_URL)
+
+  // Fetch current user's store only
+  // const { data: stores = [] , isLoading, error } = useQuery({
+  //   queryKey: ['/stores/current'],
+  // });
 
   // Delete store mutation
   const deleteStoreMutation = useMutation({
@@ -180,7 +194,7 @@ export default function StoresListPage() {
                             <MapPin className="h-4 w-4 text-red-600" />
                             <div>
                               <span className="font-medium">العنوان:</span>
-                              <p className="text-muted-foreground">{store.address}</p>
+                              <p className="text-muted-foreground">{store.city + " - " + store.country}</p>
                             </div>
                           </div>
 
@@ -209,8 +223,8 @@ export default function StoresListPage() {
 
                         <div className="mt-4 pt-4 border-t">
                           <div className="flex items-center justify-between text-sm text-muted-foreground">
-                            <span>أنشئ بواسطة: {store.createdBy || 'غير محدد'}</span>
-                            <span>تاريخ الإنشاء: {store.createdAt ? new Date(store.createdAt).toLocaleDateString('ar-SA') : 'غير محدد'}</span>
+                            <span>أنشئ بواسطة: {store.owner_name || 'غير محدد'}</span>
+                            <span>تاريخ الإنشاء: {store.created_at ? new Date(store.created_at).toLocaleDateString('ar-SA') : 'غير محدد'}</span>
                           </div>
                         </div>
                       </div>

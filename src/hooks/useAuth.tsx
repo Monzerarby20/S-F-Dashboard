@@ -1,12 +1,16 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
+import { useQuery, useMutation,useQueryClient } from '@tanstack/react-query';
 import { 
-  signInWithEmailAndPassword, 
+   
+  auth,
   signOut, 
-  onAuthStateChanged, 
-  createUserWithEmailAndPassword, 
-  MockUser as MockUser 
+  
 } from '../services/mockAuth';
-
+import { 
+  
+  fetchAuthUser, 
+  signInWithEmailAndPassword 
+} from '../services/auth';
 export interface User {
   id: string;
   email: string;
@@ -18,49 +22,65 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
-  mockUser: MockUser | null;
+ 
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [mockUser, setMockUser] = useState<MockUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(null, (mockUser) => {
-      console.log('Auth state changed:', mockUser?.email);
-      setMockUser(mockUser);
-      
-      if (mockUser) {
-        // Set user data from mock auth service
-        setUser({
-          id: mockUser.uid,
-          email: mockUser.email!,
-          name: mockUser.displayName || mockUser.email?.split('@')[0] || 'مستخدم',
-          role: mockUser.role || 'user',
-          permissions: mockUser.permissions || ['basic'],
-          branchId: mockUser.branchId || 1
-        });
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
+    const {data: authUser  , isLoading:loading}  = useQuery({
+      queryKey: ['authUser'],
+      queryFn: fetchAuthUser,
     });
+    
+    
+    useEffect(() => {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser && !authUser) {
+        setUser(JSON.parse(storedUser));
+      }else{
+        setUser(authUser ?? null);
+      }
+    }, [authUser]);
 
-    return () => unsubscribe();
-  }, []);
+  // useEffect(() => {
+  //   const unsubscribe = onAuthStateChanged(null, (mockUser) => {
+  //     console.log('Auth state changed:', mockUser?.email);
+  //     setMockUser(mockUser);
+      
+  //     if (mockUser) {
+  //       // Set user data from mock auth service
+  //       setUser({
+  //         id: mockUser.uid,
+  //         email: mockUser.email!,
+  //         name: mockUser.displayName || mockUser.email?.split('@')[0] || 'مستخدم',
+  //         role: mockUser.role || 'user',
+  //         permissions: mockUser.permissions || ['basic'],
+  //         branchId: mockUser.branchId || 1
+  //       });
+  //     } else {
+  //       setUser(null);
+  //     }
+  //     setLoading(false);
+  //   });
 
+  //   return () => unsubscribe();
+  // }, []);
+  const queryClient = useQueryClient();
   const login = async (email: string, password: string) => {
     try {
       
-      await signInWithEmailAndPassword(email, password);
+       const user = await signInWithEmailAndPassword(email, password);
+      localStorage.setItem('user', JSON.stringify(user));
+      await queryClient.invalidateQueries({ queryKey: ['authUser'] });
       
     } catch (error: any) {
       console.error('Login error:', error);
@@ -68,21 +88,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string) => {
-    try {
-      await createUserWithEmailAndPassword( email, password);
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      throw new Error(error.message || 'فشل في إنشاء الحساب');
-    }
-  };
+  
 
   const logout = async () => {
     try {
       console.log('Logging out...');
       await signOut();
+      localStorage.removeItem('user');
       setUser(null);
-      setMockUser(null);
+      
       console.log('Logout successful');
       // Force page reload to clear any cached data
       window.location.href = '/';
@@ -90,10 +104,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Logout error:', error);
       // Even if signOut fails, clear user state
       setUser(null);
-      setMockUser(null);
       window.location.href = '/';
     }
   };
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   const updateUser = (userData: Partial<User>) => {
     setUser(prev => prev ? { ...prev, ...userData } : null);
@@ -101,18 +117,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const authValue = {
     user,
-    mockUser,
     loading,
     login,
-    register,
     logout,
     updateUser
   };
 
-  return React.createElement(
-    AuthContext.Provider,
-    { value: authValue },
-    children
+  return (
+    <AuthContext.Provider value={authValue}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 

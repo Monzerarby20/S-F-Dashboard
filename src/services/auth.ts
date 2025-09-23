@@ -1,63 +1,110 @@
-
-export interface FirebaseUser {
-    uid: string;
-    email: string | null;
-    displayName: string|null;
-    role?: string;
-    permissions?: string[];
-    branchId?: number | null;
-}
- 
+import axios from "axios";
 
 
-let currentUser: FirebaseUser | null = null;
 
-export const signInWithEmailAndPassword = async (email: string, password: string) => {
-    console.log("Fake signInWithEmailAndPassword called");
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    if (email === "monzer@gmial.com" && password === "123456") {
-        return { user: {
-            uid: "123",
-            email,
-            displayName: email.split('@')[0],
-        }
-        };
-    } else {
-        throw new Error("Invalid email or password");
+const BASE_URL = import.meta.env.VITE_API_BASE_URL
+
+const api = axios.create({
+    baseURL: BASE_URL,
+});
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+}, (error) => {
+    return Promise.reject(error);
+});
+
+export const refreshToken = async () => {
+    try{
+        const refresh = localStorage.getItem('refresh-token');
+        if(!refresh) throw new Error("No refresh token available");
+        const response = await api.post('auth/token/refresh/', { refresh });
+        const { access } = response.data;
+        localStorage.setItem('token', access);
+        return access;
+    }catch(error){
+        console.error("Error refreshing token:", error);
+        throw error;
     }
 }
 
-export const signOut = async () => {
-    console.log("Fake signOut called");
-    await new Promise(resolve => setTimeout(resolve, 500));
+api.interceptors.response.use((response) => response, async (error) => {
+    const originalRequest = error.config;
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+        originalRequest._retry = true;
+        try {
+            const newAccessToken = await refreshToken();
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            return api(originalRequest);
+        }catch (err) {  
+            console.error("Refresh token failed:", err);
+            await signOut();
+        }
+    }
+    return Promise.reject(error);
+});
+
+export interface user {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  role?: string;
+  permissions?: string[];
+  branchId?: number | null;
+}
+
+let currentUser: user | null = null;
+let userId: number | null = null;
+
+
+
+export const signInWithEmailAndPassword = async (email:string,password:string) =>{
+    try{
+        const response = await api.post(`auth/token/`, { email, password });
+
+        const {access,refresh} = response.data;
+        localStorage.setItem('token', access);
+        localStorage.setItem('refresh-token', refresh);
+        console.log(response.data);
+        userId = response.data.user_id;
+        localStorage.setItem('userId', userId.toString());
+        await getUserData(access);
+        return response.data;
+    }catch(error){
+        console.error("Error during sign-in:", error);
+        throw new Error("فشل في تسجيل الدخول. يرجى التحقق من بياناتك.");
+    }
+}
+
+export const getUserData = async (token:string) =>{
+    try{
+        const response = await api.get(`auth/users/${userId}`);
+        console.log("Fetched user data:", response.data);
+        currentUser = response.data;
+        console.log("Current user set to:", currentUser);
+        return response.data;
+    }catch(error){
+        console.error("Error fetching user data:", error);
+        throw new Error("فشل في جلب بيانات المستخدم.");
+    }
+}
+
+export const fetchAuthUser = async () : Promise<user | null> => {
+    const token = localStorage.getItem('token');
+    if(!token) return null;
+    const res = await getUserData(token);
+    return res;
+}
+
+export const signOut = async () =>{
+    localStorage.removeItem('token');
+    localStorage.removeItem('refresh-token');
+    localStorage.removeItem('userId');
     currentUser = null;
-    return true;
-}
-
-
-export const createUserWithEmailAndPassword = async (email: string, password: string) => {
-    console.log("Fake createUserWithEmailAndPassword called");
-    currentUser = {
-        uid: "123",
-        email,
-        displayName: email.split('@')[0],
-        role: 'admin',
-        permissions: [],
-        branchId: null}
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return { user:currentUser};
-}
-
-export const onAuthStateChanged = (_auth : any,callback: (user: FirebaseUser| null) => void) => {
-    console.log("Fake onAuthStateChanged called");
-    // Simulate a user being logged in after 1 second
-    const timeoutId = setTimeout(() => {
-        callback(currentUser ? { uid: currentUser.uid, email: currentUser.email,displayName:currentUser.displayName } : null);
-    }, 1000);
-
-    // Return an unsubscribe function
-    return () => 
-        {
-            console.log("Fake unsubscribe called");
-            clearTimeout(timeoutId)};
+    userId = null;
+    localStorage.removeItem('user');
+    return Promise.resolve();
 }

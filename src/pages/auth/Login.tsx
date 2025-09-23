@@ -59,7 +59,7 @@ export default function LoginPage() {
               <Store className="w-8 h-8 text-primary-foreground" />
             </div>
             <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
-              تسجيل الدخول - Mock Auth
+              تسجيل الدخول 
             </CardTitle>
             <CardDescription>
               نظام إدارة نقطة البيع - MYS-F
@@ -131,28 +131,11 @@ export default function LoginPage() {
                 )}
               </Button>
 
-              <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-                ليس لديك حساب؟{' '}
-                <button
-                  type="button"
-                  onClick={() => setLocation('/auth/register')}
-                  className="text-blue-600 hover:underline"
-                >
-                  إنشاء حساب جديد
-                </button>
-              </div>
+              
             </form>
 
             <div className="mt-6 pt-6 border-t border-gray-200">
-              <div className="text-xs text-gray-500 text-center space-y-2">
-                <p className="font-semibold">🔐 حسابات تجريبية:</p>
-                <div className="bg-gray-50 p-2 rounded text-xs">
-                  <p>admin@mys-f.com / password123</p>
-                  <p>cashier@mys-f.com / password123</p>
-                  <p>manager@mys-f.com / password123</p>
-                </div>
-                <p className="text-green-600 font-semibold">✅ Mock Authentication - جاهز للاستخدام</p>
-              </div>
+              
             </div>
           </CardContent>
         </Card>

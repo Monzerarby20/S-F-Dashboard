@@ -14,7 +14,7 @@ import { apiRequest } from "@/lib/queryClient";
 import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
-
+import { getUserData } from "@/services/auth";
 interface UserProfile {
   id: string;
   name: string;
@@ -51,12 +51,14 @@ export default function ProfilePage() {
       editButtonRef.current.focus();
     }
   }, [isEditing]);
-
+  const user_id = localStorage.getItem('token') || '';
   // Fetch user profile
   const { data: profile, isLoading } = useQuery({
-    queryKey: ['/auth/user'],
-  });
+    queryKey: ['userProfile'],
+    queryFn:() => getUserData(user_id),
 
+  });
+  console.log("User Profile:", profile);
   // Update profile mutation
   const updateProfileMutation = useMutation({
     mutationFn: async (data: Partial<UserProfile>) => {
@@ -198,7 +200,7 @@ export default function ProfilePage() {
               
               <div className="flex-1 space-y-3">
                 <div>
-                  <h2 className="text-2xl font-bold">{profile?.name || 'غير محدد'}</h2>
+                  <h2 className="text-2xl font-bold">{profile?.first_name || 'غير محدد'}</h2>
                   <p className="text-muted-foreground">{profile?.email}</p>
                 </div>
                 

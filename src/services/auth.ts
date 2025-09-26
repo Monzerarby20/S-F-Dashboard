@@ -81,6 +81,9 @@ export const signInWithEmailAndPassword = async (email:string,password:string) =
 
 export const getUserData = async (token:string) =>{
     try{
+        const userId = localStorage.getItem('userId');
+        console.log(userId);
+
         const response = await api.get(`auth/users/${userId}`);
         console.log("Fetched user data:", response.data);
         currentUser = response.data;
@@ -103,6 +106,8 @@ export const signOut = async () =>{
     localStorage.removeItem('token');
     localStorage.removeItem('refresh-token');
     localStorage.removeItem('userId');
+    localStorage.removeItem('refresh');
+    localStorage.removeItem('access');
     currentUser = null;
     userId = null;
     localStorage.removeItem('user');

@@ -14,8 +14,8 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-import { normalizeArray } from "@/services/normalize";
-
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {getAllUsers,deleteUser} from "@/services/users";
 interface User {
   id: string;
   email: string;
@@ -37,17 +37,21 @@ export default function UsersList() {
   
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("all");
+  const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; userId: any | null }>({ isOpen: false, userId: null });
 
-  const { data: userData = [], isLoading } = useQuery<User[]>({
-    queryKey: ["/users"],
-  });
-  console.log(userData);
-  const users = normalizeArray(userData);
+
+  
+  const {data: users = [],isLoading } = useQuery({
+    queryKey: ['users'],
+    queryFn: getAllUsers,
+  })
+
+  
 
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      await apiRequest("DELETE", `/users/${userId}`);
-    },
+      return await deleteUser(userId);
+    } ,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast({
@@ -115,12 +119,17 @@ export default function UsersList() {
     return variants[role as keyof typeof variants] || 'outline' as const;
   };
 
+  
+  
   const handleDeleteUser = (userId: string) => {
-    if (confirm("هل أنت متأكد من حذف هذا المستخدم؟")) {
-      deleteUserMutation.mutate(userId);
+    setDeleteDialog({ isOpen: true, userId });
+  }
+
+  const handleDelete = (id: number) => {
+    if (deleteDialog.userId) {
+      deleteUserMutation.mutate(deleteDialog.userId);
     }
   };
-
   const handleToggleStatus = (userId: string, currentStatus: boolean) => {
     toggleUserStatusMutation.mutate({ userId, isActive: !currentStatus });
   };
@@ -208,14 +217,14 @@ export default function UsersList() {
                           <Avatar className="h-12 w-12">
                             <AvatarImage src={user.profileImageUrl} />
                             <AvatarFallback>
-                              {user.firstName?.[0]}{user.lastName?.[0]}
+                              {user.first_name?.[0]}{user.last_name?.[0]}
                             </AvatarFallback>
                           </Avatar>
                           
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <h3 className="font-semibold text-gray-900 dark:text-white">
-                                {user.firstName} {user.lastName}
+                                {user.first_name} {user.last_name}
                               </h3>
                               <Badge variant={getRoleBadgeVariant(user.role)}>
                                 {getRoleLabel(user.role)}
@@ -280,6 +289,26 @@ export default function UsersList() {
               </div>
             )}
           </div>
+          <AlertDialog open={deleteDialog.isOpen} onOpenChange={(isOpen) => setDeleteDialog({ isOpen })}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
+                <AlertDialogDescription>
+                  هل أنت متأكد من رغبتك في حذف هذا المستخدم؟ سيتم حذف جميع البيانات المرتبطة به ولا يمكن التراجع عن هذا الإجراء.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700"
+                  onClick={handleDelete}
+                  disabled={deleteUserMutation.isPending}
+                >
+                  {deleteUserMutation.isPending ? 'جاري الحذف...' : 'حذف المستخدم'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </main>
     </div>

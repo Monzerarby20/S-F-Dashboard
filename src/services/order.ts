@@ -27,3 +27,33 @@ export const getAllOrders= async ()=>{
         throw error;
     }
 }
+
+export const getOrderById= async (id:number)=>{
+    try{
+        const response = await api.get(`/orders/order/${id}/`);
+        console.log("Fetched order:", response.data);
+        return response.data;
+    }catch(error){
+        console.error("Error fetching order:", error);
+        throw error;
+    }
+}
+
+export async function apiRequest(
+  method: 'get' | 'post' | 'put' | 'delete' | 'patch',
+  url: string,
+  data?: unknown,
+) {
+  try {
+    const response = await api.request({
+      method,
+      url,
+      data,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("API Request error:", error);
+    throw error;
+  }
+}
+

@@ -53,6 +53,8 @@ export async function apiRequest(
   const headers = await getAuthHeaders();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+  console.log(API_BASE_URL)
+  console.log(url)
   console.log('🚀 API Request URL:', fullUrl);
   console.log('🔗 API Base URL from env:', import.meta.env.VITE_APP_API_BASE_URL);
   

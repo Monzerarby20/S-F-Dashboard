@@ -23,7 +23,7 @@ import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-
+import { getAllPromotions } from "../../services/promotion";
 const promotionSchema = z.object({
   title: z.string().min(1, "العنوان مطلوب"),
   description: z.string().min(1, "الوصف مطلوب"),
@@ -47,6 +47,14 @@ export default function PromotionsList() {
   const { data: promotions = [], isLoading } = useQuery({
     queryKey: ['/promotions'],
   });
+
+  // const {data : promotions = [] , isLoading} = useQuery({
+  //   queryKey: ['/promotions'],
+  //   queryFn: getAllPromotions,
+  // });
+
+  console.log("Fetched promotions:", promotions);
+
 
   const promotionForm = useForm<PromotionFormData>({
     resolver: zodResolver(promotionSchema),

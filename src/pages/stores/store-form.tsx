@@ -19,6 +19,7 @@ import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import { normalizeArray } from "@/services/normalize";
+import { getStoreById } from "../../services/stores";
 const storeSchema = z.object({
   name: z.string().min(1, "اسم المتجر مطلوب"),
   email: z.string().email("بريد إلكتروني غير صالح"),
@@ -65,11 +66,17 @@ export default function StoreFormPage() {
   });
 
   // Fetch store data for editing
-  const { data: stores, isLoading: storeLoading } = useQuery({
+  // const { data: stores, isLoading: storeLoading } = useQuery({
+  //   queryKey: ['/stores', id],
+  //   enabled: isEditing,
+  // });
+
+  const {data: store , isLoading :storeLoading} = useQuery({
     queryKey: ['/stores', id],
+    queryFn: () => getStoreById(id!),
     enabled: isEditing,
   });
-  const store = normalizeArray(stores)
+  // const store = normalizeArray(stores)
 
   // Fetch permission profiles
   const { data: permissionProfile = [] } = useQuery({

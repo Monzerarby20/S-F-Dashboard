@@ -15,9 +15,10 @@ import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
 import axios from "axios";
-
+import { getAllStores } from "../../services/stores";
 
 import { normalizeArray } from "@/services/normalize";
+import { get } from "http";
 
 interface Store {
   id: string;
@@ -46,10 +47,7 @@ export default function StoresListPage() {
   // Fetch all stores (admin) or current store (user)
   const {data: stores = [] , isLoading,error}  = useQuery({
     queryKey: ['stores'],
-    queryFn: async () => {
-      const response = await axios.get(`${BASE_URL}stores/stores`);
-      return response.data.results;
-    }
+    queryFn: getAllStores,
 
   });
   console.log("Fetched stores:", stores);

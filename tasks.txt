@@ -1,0 +1,12 @@
+Finished:
+    1-login and logout.
+    2-get all users in dashboard.
+    3-get all ordares and change ordares status.
+    4-get all stores in dashboard.
+    5-delete user function. 
+
+Next steps: 
+    1-discussion with backend about some things (delete user,user data ,stores)
+    2-have problem wiht getUserbyId.
+    3-no data about branches.
+    4-

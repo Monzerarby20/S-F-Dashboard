@@ -113,3 +113,4 @@ export const signOut = async () =>{
     localStorage.removeItem('user');
     return Promise.resolve();
 }
+

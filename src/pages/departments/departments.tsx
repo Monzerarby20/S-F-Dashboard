@@ -19,7 +19,7 @@ import { Plus, Edit, Trash2, Folder } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-
+import { getAllDepartments } from "@/services/departments";
 type FormData = z.infer<typeof insertDepartmentSchema>;
 
 export default function Departments() {
@@ -33,6 +33,12 @@ export default function Departments() {
   const { data: departments, isLoading } = useQuery({
     queryKey: [`/api/departments?branchId=${user?.branchId}`],
   });
+
+  // const {data: departments,isLoading} = useQuery({
+  //   queryKey: ['/departments'],
+  //   queryFn: getAllDepartments,
+  //   // enabled: !!user?.branchId,
+  // });
 
   const form = useForm<FormData>({
     resolver: zodResolver(insertDepartmentSchema),

@@ -15,6 +15,8 @@ import { Search, Plus, Upload, Edit, Trash2, AlertTriangle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
+import {getAllProducts} from "@/services/products";
+
 
 export default function ProductsList() {
   const { user } = useAuth();
@@ -30,10 +32,16 @@ export default function ProductsList() {
     queryKey: [`/products?branchId=${user?.branchId}&search=${search}&departmentId=${departmentFilter}&stockStatus=${stockFilter}&expiryStatus=${expiryFilter}`],
   });
 
-  const { data: departments } = useQuery({
+  // const {data: products = [], isLoading} = useQuery(
+  //   {
+  //     queryKey: ['products'],
+  //     queryFn: () => getAllProducts(),
+  //   }
+  // )
+  const { data: departments = [] } = useQuery({
     queryKey: [`/departments?branchId=${user?.branchId}`],
   });
-
+  console.log("Departments:", typeof(departments));
   const deleteProductMutation = useMutation({
     mutationFn: async (productId: number) => {
       await apiRequest('DELETE', `/products/${productId}`);

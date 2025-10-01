@@ -200,7 +200,7 @@ export default function StoresListPage() {
                             <Users className="h-4 w-4 text-purple-600" />
                             <div>
                               <span className="font-medium">بريد الدخول:</span>
-                              <p className="text-muted-foreground">{store.loginEmail}</p>
+                              <p className="text-muted-foreground">{store.email}</p>
                             </div>
                           </div>
 

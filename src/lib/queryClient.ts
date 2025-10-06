@@ -9,8 +9,7 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-export {apiRequests};
-
+export { apiRequests };
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,16 +18,16 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
-      retry: false,
+      retry: false
     },
     mutations: {
-      retry: false,
-    },
-  },
+      retry: false
+    }
+  }
 });
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    "Content-Type": "application/json"
   };
 
   try {
@@ -48,21 +47,21 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 export async function apiRequest(
   method: string,
   url: string,
-  data?: unknown | undefined,
+  data?: unknown | undefined
 ): Promise<Response> {
   const headers = await getAuthHeaders();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-  const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-  console.log(API_BASE_URL)
-  console.log(url)
-  console.log('🚀 API Request URL:', fullUrl);
-  console.log('🔗 API Base URL from env:', import.meta.env.VITE_API_BASE_URL);
-  
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+  console.log(API_BASE_URL);
+  console.log(url);
+  console.log("🚀 API Request URL:", fullUrl);
+  console.log("🔗 API Base URL from env:", import.meta.env.VITE_API_BASE_URL);
+
   const res = await fetch(fullUrl, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
+    credentials: "include"
   });
 
   await throwIfResNotOk(res);
@@ -81,14 +80,16 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const headers = await getAuthHeaders();
-    
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-    const url = (queryKey[0] as string).startsWith('http') ? queryKey[0] as string : `${API_BASE_URL}${queryKey[0]}`;
-    console.log('🌐 Query API URL:', url);
-    
+
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+    const url = (queryKey[0] as string).startsWith("http")
+      ? (queryKey[0] as string)
+      : `${API_BASE_URL}${queryKey[0]}`;
+    console.log("🌐 Query API URL:", url);
+
     const res = await fetch(url, {
       credentials: "include",
-      headers,
+      headers
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

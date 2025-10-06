@@ -1,7 +1,7 @@
 let mookTocken: string | null = null;
 let mockData: Record<string, any>[] = [
   { uid: 1, name: "Client A" },
-  { uid: 2, name: "Client B" },
+  { uid: 2, name: "Client B" }
 ];
 
 export function setMockToken(token: string | null) {
@@ -10,7 +10,7 @@ export function setMockToken(token: string | null) {
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    "Content-Type": "application/json"
   };
   if (mookTocken) {
     headers["Authorization"] = `Bearer ${mookTocken}`;
@@ -35,27 +35,22 @@ export async function apiRequests(
   if (!headers["Authorization"]) {
     return new Response(JSON.stringify({ message: "Unauthorized" }), {
       status: 401,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" }
     });
   }
 
   if (method === "GET" && url === "/clients") {
     return new Response(JSON.stringify(mockData), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" }
     });
   }
 
   return new Response(JSON.stringify({ message: "Not Found" }), {
     status: 404,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" }
   });
 }
-
-
-
-
-
 
 export function getQueryFnc<T>({ on401 }: { on401: "returnNull" | "throw" }) {
   return async ({ queryKey }: { queryKey: any }) => {

@@ -1,8 +1,11 @@
+@import "tailwindcss";
+/* @tailwind base;
+@tailwind components;
+@tailwind utilities; */
 @import url("https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap");
 
 @import "./styles/accessibility.css";
 
-@import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 /* Dark mode CSS variables */

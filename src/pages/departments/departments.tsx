@@ -44,7 +44,6 @@ import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
 import { getAllDepartments, updateDepartment,createDepartment } from "@/services/departments";
-import { error } from "console";
 type FormData = z.infer<typeof insertDepartmentSchema>;
 
 export default function Departments() {

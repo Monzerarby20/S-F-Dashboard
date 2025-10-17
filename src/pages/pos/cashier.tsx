@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import QuickCustomerAdd from "@/components/customers/quick-customer-add";
 import TestQRGenerator from "@/components/qr/test-qr-generator";
-
+import { getProductByBartcode } from "@/services/cashier";
 interface CartItem {
   id: number;
   name: string;
@@ -68,10 +68,12 @@ export default function CashierPOS() {
 
   // Fetch products by barcode
   const findProductMutation = useMutation({
-    mutationFn: async (barcode: string) => {
-      const response = await apiRequest('GET', `/api/products/barcode/${barcode}`);
-      return response.json();
-    },
+    // const payload = {
+    //   "barcode": barcodeInput,
+    //   "latitude": storeLatitude,
+    //   "longitude": storeLongitude,
+    // }
+    mutationFn: getProductByBartcode,
     onSuccess: (product) => {
       addToCart(product);
       setBarcodeInput("");

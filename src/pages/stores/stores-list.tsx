@@ -14,7 +14,14 @@ import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-import axios from "axios";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
 import { getAllStores } from "../../services/stores";
 
 import { normalizeArray } from "@/services/normalize";
@@ -67,7 +74,7 @@ export default function StoresListPage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/stores'] });
+      queryClient.invalidateQueries({ queryKey: ['stores'] });
       toast({
         title: "تم الحذف",
         description: "تم حذف المتجر بنجاح",
@@ -116,6 +123,39 @@ export default function StoresListPage() {
         description="عرض وإدارة معلومات المتجر الحالي"
         icon={<Store className="h-8 w-8" />}
       />
+      <div className="flex justify-end mb-4">
+  <Dialog>
+    <DialogTrigger asChild>
+      <Button className="bg-primary text-white hover:bg-primary/90">
+        <Plus className="ml-2 h-4 w-4" /> إضافة متجر جديد
+      </Button>
+    </DialogTrigger>
+    <DialogContent className="sm:max-w-[600px]">
+      <DialogHeader>
+        <DialogTitle>إضافة متجر جديد</DialogTitle>
+      </DialogHeader>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          toast({
+            title: "تمت إضافة المتجر (تجريبيًا)",
+            description: "سيتم تنفيذ الإضافة الفعلية بعد ربط الـ API.",
+          });
+        }}
+        className="space-y-4"
+      >
+        <Input placeholder="اسم المتجر" required />
+        <Input placeholder="البريد الإلكتروني" type="email" required />
+        <Input placeholder="رقم الهاتف" required />
+        <Input placeholder="العنوان" required />
+        <div className="flex justify-end">
+          <Button type="submit">حفظ</Button>
+        </div>
+      </form>
+    </DialogContent>
+  </Dialog>
+</div>
+
 
       <div className="space-y-6">
         {/* Search */}
@@ -142,7 +182,7 @@ export default function StoresListPage() {
             <CardTitle>معلومات المتجر</CardTitle>
           </CardHeader>
           <CardContent>
-            {!currentStore ? (
+            {currentStore.length === 0 ?(
               <EmptyState
                 icon={<Store className="h-12 w-12" />}
                 title="لا توجد معلومات متجر"

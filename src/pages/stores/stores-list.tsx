@@ -39,7 +39,7 @@ interface Store {
   taxId?: string;
   accountingRefId?: string;
   permissionProfile?: string;
-  branchesCount: number;
+  branches_count: number;
   totalYearlyOperations: number;
   createdBy: string;
   createdAt: string;
@@ -328,7 +328,7 @@ export default function StoresListPage() {
                         <div className="flex items-center gap-3 mb-3">
                           <h3 className="font-bold text-xl">{store.name}</h3>
                           <Badge variant="outline">
-                            {store.branchesCount || 0} فرع
+                            {store.branches_count || 0} فرع
                           </Badge>
                         </div>
 

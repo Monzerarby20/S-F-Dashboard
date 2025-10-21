@@ -21,7 +21,7 @@ export const getStoreBranches = async(storeSlug:any) =>{
     try{
         const response = await api.get(`stores/stores/${storeSlug}/branches`);
         console.log("Fetched Branches ",response)
-        return response.data
+        return response.data.results
     }catch(error){
         console.error("Error fetching branches",error)
         throw error

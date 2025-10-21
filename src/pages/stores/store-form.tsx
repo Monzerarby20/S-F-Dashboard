@@ -19,18 +19,23 @@ import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import { normalizeArray } from "@/services/normalize";
-import { getStoreById } from "../../services/stores";
+import { getStoreBySlug } from "../../services/stores";
+import { getStoreBranches } from "@/services/branches";
 const storeSchema = z.object({
   name: z.string().min(1, "اسم المتجر مطلوب"),
+  description: z.string().optional(),
+  phone: z.string().min(1, "رقم الهاتف مطلوب"),
   email: z.string().email("بريد إلكتروني غير صالح"),
-  phoneNumber: z.string().min(1, "رقم الهاتف مطلوب"),
   address: z.string().min(1, "العنوان مطلوب"),
-  loginEmail: z.string().email("بريد إلكتروني غير صالح"),
-  taxId: z.string().optional(),
-  accountingRefId: z.string().optional(),
-  permissionProfile: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  postal_code: z.string().optional(),
+  latitude: z.string().optional(),
+  longitude: z.string().optional(),
+  store_type: z.string().optional(),
+  is_active: z.boolean().optional(),
 });
-
 type StoreFormData = z.infer<typeof storeSchema>;
 
 interface Store extends StoreFormData {
@@ -44,7 +49,8 @@ interface Store extends StoreFormData {
 }
 
 export default function StoreFormPage() {
-  const { id } = useParams();
+  const storeSlug = localStorage.getItem("userSlug");
+  const {id} = useParams()
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -55,15 +61,21 @@ export default function StoreFormPage() {
     resolver: zodResolver(storeSchema),
     defaultValues: {
       name: "",
+      description: "",
+      phone: "",
       email: "",
-      phoneNumber: "",
       address: "",
-      loginEmail: "",
-      taxId: "",
-      accountingRefId: "",
-      permissionProfile: "",
+      city: "",
+      state: "",
+      country: "",
+      postal_code: "",
+      latitude: "",
+      longitude: "",
+      store_type: "",
+      is_active: true,
     },
   });
+  
 
   // Fetch store data for editing
   // const { data: stores, isLoading: storeLoading } = useQuery({
@@ -72,11 +84,13 @@ export default function StoreFormPage() {
   // });
 
   const {data: store , isLoading :storeLoading} = useQuery({
-    queryKey: ['/stores', id],
-    queryFn: () => getStoreById(id!),
+    queryKey: ['/stores', storeSlug],
+    queryFn: () => getStoreBySlug(storeSlug),
     enabled: isEditing,
   });
-  // const store = normalizeArray(stores)
+  console.log(storeSlug)
+  console.log(store)
+  
 
   // Fetch permission profiles
   const { data: permissionProfile = [] } = useQuery({
@@ -85,27 +99,34 @@ export default function StoreFormPage() {
   const permissionProfiles = normalizeArray(permissionProfile)
 
   // Fetch branches for this store
-  const { data: branche = [] } = useQuery({
-    queryKey: ['/branches', { store_id: id }],
+  const { data: branches = [] } = useQuery({
+    queryKey: ['/branches', storeSlug],
+    queryFn: () => getStoreBranches(storeSlug),
     enabled: isEditing,
   });
-  const branches = normalizeArray(branche)
+  // const branches = normalizeArray(branche)
 
   // Update form when store data is loaded
   useEffect(() => {
     if (store && isEditing) {
       form.reset({
         name: store.name || "",
+        description: store.description || "",
+        phone: store.phone || "",
         email: store.email || "",
-        phoneNumber: store.phoneNumber || "",
         address: store.address || "",
-        loginEmail: store.loginEmail || "",
-        taxId: store.taxId || "",
-        accountingRefId: store.accountingRefId || "",
-        permissionProfile: store.permissionProfile || "",
+        city: store.city || "",
+        state: store.state || "",
+        country: store.country || "",
+        postal_code: store.postal_code || "",
+        latitude: store.latitude || "",
+        longitude: store.longitude || "",
+        store_type: store.store_type || "",
+        is_active: store.is_active ?? true,
       });
     }
   }, [store, isEditing, form]);
+  
 
   // Update mutation only
   const saveMutation = useMutation({
@@ -208,7 +229,7 @@ export default function StoreFormPage() {
 
                       <FormField
                         control={form.control}
-                        name="phoneNumber"
+                        name="phone"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>رقم الهاتف *</FormLabel>
@@ -222,7 +243,7 @@ export default function StoreFormPage() {
 
                       <FormField
                         control={form.control}
-                        name="loginEmail"
+                        name="email"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>البريد الإلكتروني للدخول *</FormLabel>

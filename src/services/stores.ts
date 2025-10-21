@@ -37,3 +37,15 @@ export const getStoreById = async (storeId: string) => {
         throw error;
     }
 }
+
+
+export const createNewStore = async (data : object) =>{
+    try {
+        const response = await api.post('stores/stores/',data)
+        console.log("Create Store Successfully",response)
+        return response.data;
+    }catch(error){
+        console.log("Error Adding New Store",error)
+        throw error
+    }
+}

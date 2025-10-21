@@ -14,6 +14,9 @@ import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
+import { Textarea } from "@/components/ui/textarea";
+import { createNewStore } from "@/services/stores";
+
 import {
   Dialog,
   DialogContent,
@@ -48,10 +51,35 @@ export default function StoresListPage() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; store?: Store }>({ open: false });
+  const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
+  const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
+  const [formData, setFormData] = useState({
+    store_type: "",
+  });
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL ;
+  
+  const [openingHours, setOpeningHours] = useState(
+    days.reduce((acc, day) => ({ ...acc, [day]: { ...defaultDaySchedule } }), {})
+  );
+
+  function handleDayChange(day: any, field: any, value: any) {
+    setOpeningHours(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [field]: value,
+        ...(field === "closed" && value ? { all_day: false } : {}),
+        ...(field === "all_day" && value ? { closed: false } : {}),
+      },
+    }));
+  }
+
+
+
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL;
   // Fetch all stores (admin) or current store (user)
-  const {data: stores = [] , isLoading,error}  = useQuery({
+  const { data: stores = [], isLoading, error } = useQuery({
     queryKey: ['stores'],
     queryFn: getAllStores,
 
@@ -91,7 +119,7 @@ export default function StoresListPage() {
   });
 
   //Normalize to array 
-  const currentStore  = normalizeArray(stores);
+  const currentStore = normalizeArray(stores);
 
   // Filter current store based on search
   const filteredStores = currentStore.filter((store: Store) => {
@@ -103,7 +131,30 @@ export default function StoresListPage() {
       store.loginEmail.toLowerCase().includes(q)
     );
   });
-  
+
+
+  const addStoreMutation = useMutation({
+    mutationFn: createNewStore,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stores'] }); // تحديث القائمة
+      toast({
+        title: "تمت الإضافة",
+        description: "تمت إضافة المتجر بنجاح",
+      });
+      setIsDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "حدث خطأ",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+
+
+
   // const matchesSearch = currentStore && searchTerm ? (
   //   currentStore.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
   //   currentStore.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -124,37 +175,108 @@ export default function StoresListPage() {
         icon={<Store className="h-8 w-8" />}
       />
       <div className="flex justify-end mb-4">
-  <Dialog>
-    <DialogTrigger asChild>
-      <Button className="bg-primary text-white hover:bg-primary/90">
-        <Plus className="ml-2 h-4 w-4" /> إضافة متجر جديد
-      </Button>
-    </DialogTrigger>
-    <DialogContent className="sm:max-w-[600px]">
-      <DialogHeader>
-        <DialogTitle>إضافة متجر جديد</DialogTitle>
-      </DialogHeader>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          toast({
-            title: "تمت إضافة المتجر (تجريبيًا)",
-            description: "سيتم تنفيذ الإضافة الفعلية بعد ربط الـ API.",
-          });
-        }}
-        className="space-y-4"
-      >
-        <Input placeholder="اسم المتجر" required />
-        <Input placeholder="البريد الإلكتروني" type="email" required />
-        <Input placeholder="رقم الهاتف" required />
-        <Input placeholder="العنوان" required />
-        <div className="flex justify-end">
-          <Button type="submit">حفظ</Button>
-        </div>
-      </form>
-    </DialogContent>
-  </Dialog>
-</div>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-primary text-white hover:bg-primary/90">
+              <Plus className="ml-2 h-4 w-4" /> إضافة متجر جديد
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto rounded-2xl]">
+
+            <DialogHeader>
+              <DialogTitle>إضافة متجر جديد</DialogTitle>
+            </DialogHeader>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const payload = Object.fromEntries(formData.entries());
+                addStoreMutation.mutate(payload);
+              }}
+              className="space-y-4"
+            >
+              <Input name="name" placeholder="اسم المتجر" required />
+              <Textarea name="description" placeholder="وصف المتجر" required />
+              <Input name="phone" placeholder="رقم الهاتف" required />
+              <Input name="email" type="email" placeholder="البريد الإلكتروني" required />
+              <Input name="address" placeholder="العنوان" required />
+              <Input name="city" placeholder="المدينة" required />
+              <Input name="state" placeholder="المحافظة" required />
+              <Input name="country" placeholder="الدولة" required />
+              <Input name="postal_code" placeholder="الرمز البريدي" required />
+              <Input name="latitude" placeholder="خط العرض (latitude)" />
+              <Input name="longitude" placeholder="خط الطول (longitude)" />
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">نوع المتجر</label>
+                <Select
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, store_type: value }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="اختر نوع المتجر" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="electronics">إلكترونيات</SelectItem>
+                    <SelectItem value="clothing">ملابس</SelectItem>
+                    <SelectItem value="food">أطعمة</SelectItem>
+                    <SelectItem value="other">أخرى</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="border p-3 rounded-md">
+                <h4 className="font-semibold mb-2">مواعيد العمل</h4>
+                <div className="space-y-2">
+                  {days.map(day => (
+                    <div key={day} className="flex items-center justify-between border-b py-2">
+                      <span className="capitalize w-24">{day}</span>
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={openingHours[day].closed}
+                            onChange={e => handleDayChange(day, "closed", e.target.checked)}
+                          />
+                          مغلق
+                        </label>
+                        <label className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={openingHours[day].all_day}
+                            onChange={e => handleDayChange(day, "all_day", e.target.checked)}
+                          />
+                          24 ساعة
+                        </label>
+                      </div>
+                      {!openingHours[day].closed && !openingHours[day].all_day && (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="time"
+                            value={openingHours[day].open}
+                            onChange={e => handleDayChange(day, "open", e.target.value)}
+                            className="w-28"
+                          />
+                          <Input
+                            type="time"
+                            value={openingHours[day].close}
+                            onChange={e => handleDayChange(day, "close", e.target.value)}
+                            className="w-28"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button type="submit">حفظ</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
 
       <div className="space-y-6">
@@ -182,7 +304,7 @@ export default function StoresListPage() {
             <CardTitle>معلومات المتجر</CardTitle>
           </CardHeader>
           <CardContent>
-            {currentStore.length === 0 ?(
+            {currentStore.length === 0 ? (
               <EmptyState
                 icon={<Store className="h-12 w-12" />}
                 title="لا توجد معلومات متجر"
@@ -209,7 +331,7 @@ export default function StoresListPage() {
                             {store.branchesCount || 0} فرع
                           </Badge>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
                           <div className="flex items-center gap-2">
                             <Mail className="h-4 w-4 text-blue-600" />
@@ -218,12 +340,12 @@ export default function StoresListPage() {
                               <p className="text-muted-foreground">{store.email}</p>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center gap-2">
                             <Phone className="h-4 w-4 text-green-600" />
                             <div>
                               <span className="font-medium">الهاتف:</span>
-                              <p className="text-muted-foreground">{store.phoneNumber}</p>
+                              <p className="text-muted-foreground">{store.phone}</p>
                             </div>
                           </div>
 

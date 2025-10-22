@@ -58,7 +58,8 @@ export interface user {
 
 let currentUser: user | null = null;
 let userId: number | null = null;
-
+let userSlug: string| null = null;
+let userRole: string| null = null ;
 
 
 export const signInWithEmailAndPassword = async (email:string,password:string) =>{
@@ -70,7 +71,12 @@ export const signInWithEmailAndPassword = async (email:string,password:string) =
         localStorage.setItem('refresh-token', refresh);
         console.log(response.data);
         userId = response.data.user_id;
+        userSlug = response.data.store_slug;
+        userRole = response.data.role
         localStorage.setItem('userId', userId.toString());
+        localStorage.setItem('userSlug', userSlug.toString());
+        localStorage.setItem('userRole',userRole.toString())
+
         await getUserData(access);
         return response.data;
     }catch(error){

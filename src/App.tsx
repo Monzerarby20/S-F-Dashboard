@@ -71,7 +71,7 @@ function Router() {
           <Route path="/customers" component={CustomersListPage} />
           <Route path="/reports" component={ReportsDashboard} />
           <Route path="/stores" component={StoresListPage} />
-          <Route path="/stores/:id" component={StoreFormPage} />
+          <Route path="/stores/:slug" component={StoreFormPage} />
           <Route path="/settings" component={SettingsPage} />
           <Route path="/notifications" component={NotificationsPage} />
           <Route path="/profile" component={ProfilePage} />

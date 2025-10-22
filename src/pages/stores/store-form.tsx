@@ -19,7 +19,7 @@ import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import { normalizeArray } from "@/services/normalize";
-import { getStoreBySlug } from "../../services/stores";
+import { getStoreBySlug , updateStoreinfo} from "../../services/stores";
 import { getStoreBranches } from "@/services/branches";
 const storeSchema = z.object({
   name: z.string().min(1, "اسم المتجر مطلوب"),
@@ -49,13 +49,17 @@ interface Store extends StoreFormData {
 }
 
 export default function StoreFormPage() {
-  const storeSlug = localStorage.getItem("userSlug");
-  const {id} = useParams()
+
+  // const storeSlug = localStorage.getItem("userSlug");
+  const { slug } = useParams()
+  const storeSlug = slug
+  console.log(storeSlug)
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  const isEditing = !!id;
+  const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
+  const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
+  const isEditing = !!slug;
 
   const form = useForm<StoreFormData>({
     resolver: zodResolver(storeSchema),
@@ -75,7 +79,11 @@ export default function StoreFormPage() {
       is_active: true,
     },
   });
-  
+
+  const [openingHours, setOpeningHours] = useState(
+    days.reduce((acc, day) => ({ ...acc, [day]: { ...defaultDaySchedule } }), {})
+  );
+
 
   // Fetch store data for editing
   // const { data: stores, isLoading: storeLoading } = useQuery({
@@ -83,15 +91,26 @@ export default function StoreFormPage() {
   //   enabled: isEditing,
   // });
 
-  const {data: store , isLoading :storeLoading} = useQuery({
+  const { data: store, isLoading: storeLoading } = useQuery({
     queryKey: ['/stores', storeSlug],
     queryFn: () => getStoreBySlug(storeSlug),
     enabled: isEditing,
   });
   console.log(storeSlug)
   console.log(store)
-  
 
+  useEffect(() => {
+    if (store?.opening_hours) {
+      try {
+        const parsed = typeof store.opening_hours === "string"
+          ? JSON.parse(store.opening_hours)
+          : store.opening_hours;
+        setOpeningHours({ ...openingHours, ...parsed });
+      } catch (err) {
+        console.error("Error parsing working hours:", err);
+      }
+    }
+  }, [store]);
   // Fetch permission profiles
   const { data: permissionProfile = [] } = useQuery({
     queryKey: ['/storepermissionprofiles'],
@@ -105,7 +124,17 @@ export default function StoreFormPage() {
     enabled: isEditing,
   });
   // const branches = normalizeArray(branche)
-
+  function handleDayChange(day, field, value) {
+    setOpeningHours(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [field]: value,
+        ...(field === "closed" && value ? { all_day: false } : {}),
+        ...(field === "all_day" && value ? { closed: false } : {}),
+      },
+    }));
+  }
   // Update form when store data is loaded
   useEffect(() => {
     if (store && isEditing) {
@@ -126,16 +155,13 @@ export default function StoreFormPage() {
       });
     }
   }, [store, isEditing, form]);
-  
+
 
   // Update mutation only
   const saveMutation = useMutation({
     mutationFn: async (data: StoreFormData) => {
-      const response = await apiRequest('PUT', `/api/stores/${id}`, data);
-      if (!response.ok) {
-        throw new Error('فشل في تحديث المتجر');
-      }
-      return response.json();
+      console.log(data)
+      return await updateStoreinfo(data,storeSlug)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/stores'] });
@@ -291,16 +317,64 @@ export default function StoreFormPage() {
                         <FormItem>
                           <FormLabel>العنوان *</FormLabel>
                           <FormControl>
-                            <Textarea 
-                              placeholder="العنوان الكامل للمتجر" 
+                            <Textarea
+                              placeholder="العنوان الكامل للمتجر"
                               className="min-h-[100px]"
-                              {...field} 
+                              {...field}
                             />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+                    <FormItem>
+                      <FormLabel>ساعات العمل</FormLabel>
+                      <div className="border p-3 rounded-md">
+                        <div className="space-y-2">
+                          {days.map((day) => (
+                            <div key={day} className="flex items-center justify-between border-b py-2">
+                              <span className="capitalize w-24">{day}</span>
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={openingHours[day]?.closed}
+                                    onChange={(e) => handleDayChange(day, "closed", e.target.checked)}
+                                  />
+                                  مغلق
+                                </label>
+                                <label className="flex items-center gap-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={openingHours[day]?.all_day}
+                                    onChange={(e) => handleDayChange(day, "all_day", e.target.checked)}
+                                  />
+                                  24 ساعة
+                                </label>
+                              </div>
+                              {!openingHours[day]?.closed && !openingHours[day]?.all_day && (
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    type="time"
+                                    value={openingHours[day]?.open}
+                                    onChange={(e) => handleDayChange(day, "open", e.target.value)}
+                                    className="w-28"
+                                  />
+                                  <Input
+                                    type="time"
+                                    value={openingHours[day]?.close}
+                                    onChange={(e) => handleDayChange(day, "close", e.target.value)}
+                                    className="w-28"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+
 
                     <FormField
                       control={form.control}
@@ -328,17 +402,17 @@ export default function StoreFormPage() {
                     />
 
                     <div className="flex gap-4 pt-4">
-                      <Button 
-                        type="submit" 
+                      <Button
+                        type="submit"
                         disabled={saveMutation.isPending}
                         className="flex-1"
                       >
                         <Save className="h-4 w-4 mr-2" />
                         {saveMutation.isPending ? "جاري التحديث..." : "حفظ التعديلات"}
                       </Button>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
+                      <Button
+                        type="button"
+                        variant="outline"
                         onClick={handleCancel}
                         className="flex-1"
                       >
@@ -404,19 +478,19 @@ export default function StoreFormPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">الحساب الرئيسي:</span>
-                      <span>{store.mainUserAccount || "غير محدد"}</span>
+                      <span>{store.email || "غير محدد"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">أنشئ بواسطة:</span>
-                      <span>{store.createdBy || 'غير محدد'}</span>
+                      <span>{store.owner_name || 'غير محدد'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">تاريخ الإنشاء:</span>
-                      <span>{store.createdAt ? new Date(store.createdAt).toLocaleDateString('ar-SA') : 'غير محدد'}</span>
+                      <span>{store.created_at ? new Date(store.created_at).toLocaleDateString('ar-SA') : 'غير محدد'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">آخر تحديث:</span>
-                      <span>{store.lastUpdated ? new Date(store.lastUpdated).toLocaleDateString('ar-SA') : 'غير محدد'}</span>
+                      <span>{store.updated_at ? new Date(store.updated_at).toLocaleDateString('ar-SA') : 'غير محدد'}</span>
                     </div>
                   </CardContent>
                 </Card>

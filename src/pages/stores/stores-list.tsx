@@ -29,6 +29,7 @@ import { getAllStores } from "../../services/stores";
 
 import { normalizeArray } from "@/services/normalize";
 
+
 interface Store {
   id: string;
   name: string;
@@ -44,6 +45,7 @@ interface Store {
   createdBy: string;
   createdAt: string;
   lastUpdated: string;
+  store_type: string;
 }
 
 export default function StoresListPage() {
@@ -57,7 +59,8 @@ export default function StoresListPage() {
     store_type: "",
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-
+  const [payload , setPaylod] = useState("")
+  console.log(payload)
   
   const [openingHours, setOpeningHours] = useState(
     days.reduce((acc, day) => ({ ...acc, [day]: { ...defaultDaySchedule } }), {})
@@ -189,9 +192,19 @@ export default function StoresListPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+            
                 const formData = new FormData(e.target);
                 const payload = Object.fromEntries(formData.entries());
-                addStoreMutation.mutate(payload);
+            
+                // دمج مواعيد العمل مع بيانات الفورم
+                const finalPayload = {
+                  ...payload,
+                  store_type: formData.store_type, 
+                  opening_hours: openingHours, // ✅ هنا بنضيف الأوقات فعليًا
+                };
+            
+                setPaylod(finalPayload); // دي بس عشان تشوفها في console لو حابب
+                addStoreMutation.mutate(finalPayload);
               }}
               className="space-y-4"
             >
@@ -209,6 +222,7 @@ export default function StoresListPage() {
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">نوع المتجر</label>
                 <Select
+                  value={formData.store_type}
                   onValueChange={(value) =>
                     setFormData((prev) => ({ ...prev, store_type: value }))
                   }
@@ -217,10 +231,9 @@ export default function StoresListPage() {
                     <SelectValue placeholder="اختر نوع المتجر" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="electronics">إلكترونيات</SelectItem>
-                    <SelectItem value="clothing">ملابس</SelectItem>
-                    <SelectItem value="food">أطعمة</SelectItem>
-                    <SelectItem value="other">أخرى</SelectItem>
+                    <SelectItem value="online">متجر الإلكتروني</SelectItem>
+                    <SelectItem value="physical">متحر فعلي</SelectItem>
+                    <SelectItem value="hybrid">متجر مختلط</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -389,7 +402,7 @@ export default function StoresListPage() {
                       </div>
 
                       <div className="flex gap-2 ml-4">
-                        <Link href={`/stores/${store.id}`}>
+                        <Link href={`/stores/${store.slug}`}>
                           <Button variant="outline" size="sm">
                             <Edit className="h-4 w-4 mr-2" />
                             تعديل معلومات المتجر

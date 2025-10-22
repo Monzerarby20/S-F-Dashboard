@@ -49,3 +49,15 @@ export const createNewStore = async (data : object) =>{
         throw error
     }
 }
+
+export const updateStoreinfo = async (data : object,storeSlug:string) => {
+    try{
+        const response = await api.patch(`stores/stores/${storeSlug}/`,data)
+        console.log("Store Updated Successfully",response)
+        return response.data
+
+    }catch(error){
+        console.log("Error Updating Store",error)
+        throw error
+    }
+}

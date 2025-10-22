@@ -124,7 +124,7 @@ export default function AddUserPage() {
       setRole(data)
       setRoleLoding(false)
     }
-    fetchRoles()
+    fetch()
   },[])
 
   // const { data: branches = [], isLoading: branchesLoading } = useQuery({

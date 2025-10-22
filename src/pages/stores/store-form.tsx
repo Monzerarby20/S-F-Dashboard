@@ -181,7 +181,12 @@ export default function StoreFormPage() {
   });
 
   const onSubmit = (data: StoreFormData) => {
-    saveMutation.mutate(data);
+    const payload = {
+      ...data,
+      opening_hours: JSON.stringify(openingHours),
+    };
+    console.log("🚀 Data sent to backend:", payload);
+    saveMutation.mutate(payload);
   };
 
   const handleCancel = () => {

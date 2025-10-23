@@ -16,6 +16,7 @@ import Loading from "@/components/common/loading";
 import QuickCustomerAdd from "@/components/customers/quick-customer-add";
 import TestQRGenerator from "@/components/qr/test-qr-generator";
 import { getProductByBartcode } from "@/services/cashier";
+import { getStoreBySlug } from "@/services/stores";
 interface CartItem {
   id: number;
   name: string;
@@ -65,15 +66,36 @@ export default function CashierPOS() {
   const [qrInput, setQrInput] = useState("");
   const [isQRScanning, setIsQRScanning] = useState(false);
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>("https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")
-
+  // Fetch user store data
+  const userStoreSlug: string = localStorage.getItem("userSlug")
+  const { data: store, isLoading: storeLoading, error: storeError } = useQuery({
+    queryKey: ['/stores', userStoreSlug],
+    queryFn: () => getStoreBySlug(userStoreSlug),
+    enabled: !!userStoreSlug, // يتأكد إنه مش null
+  });
+  
+  useEffect(() => {
+    console.log("fetched current store", store);
+  }, [store]);
+  
+  const storeLatitude = store?.latitude ?? null;
+  const storeLongitude = store?.longitude ?? null;
+  console.log("fetched current store",store)
+  
+  console.log(storeLatitude,storeLongitude)
   // Fetch products by barcode
+  
   const findProductMutation = useMutation({
-    // const payload = {
-    //   "barcode": barcodeInput,
-    //   "latitude": storeLatitude,
-    //   "longitude": storeLongitude,
-    // }
-    mutationFn: getProductByBartcode,
+    
+    mutationFn: async() =>{
+      const payload:any = {
+        "barcode": barcodeInput,
+        "latitude": storeLatitude,
+        "longitude": storeLongitude,
+      }
+      const response = await getProductByBartcode(payload);
+      return response
+    } ,
     onSuccess: (product) => {
       addToCart(product);
       setBarcodeInput("");

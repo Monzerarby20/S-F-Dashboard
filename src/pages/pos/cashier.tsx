@@ -15,7 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import QuickCustomerAdd from "@/components/customers/quick-customer-add";
 import TestQRGenerator from "@/components/qr/test-qr-generator";
-
+import { getProductByBartcode } from "@/services/cashier";
+import { getStoreBySlug } from "@/services/stores";
 interface CartItem {
   id: number;
   name: string;
@@ -26,7 +27,7 @@ interface CartItem {
 
 interface QROrderItem {
   productId: number;
-  productName: string;
+  name: string;
   barcode: string;
   quantity: number;
   unitPrice: number;
@@ -51,27 +52,54 @@ export default function CashierPOS() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   // POS State
   const [cart, setCart] = useState<CartItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  
+
   // QR Verification State
   const [activeTab, setActiveTab] = useState("pos");
   const [currentOrder, setCurrentOrder] = useState<QROrder | null>(null);
   const [qrInput, setQrInput] = useState("");
   const [isQRScanning, setIsQRScanning] = useState(false);
-
+  const [invoiceUrl, setInvoiceUrl] = useState<string | null>("https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")
+  // Fetch user store data
+  const userStoreSlug: string = localStorage.getItem("userSlug")
+  const { data: store, isLoading: storeLoading, error: storeError } = useQuery({
+    queryKey: ['/stores', userStoreSlug],
+    queryFn: () => getStoreBySlug(userStoreSlug),
+    enabled: !!userStoreSlug, // يتأكد إنه مش null
+  });
+  
+  useEffect(() => {
+    console.log("fetched current store", store);
+  }, [store]);
+  
+  const storeLatitude = store?.latitude ?? null;
+  const storeLongitude = store?.longitude ?? null;
+  console.log("fetched current store",store)
+  
+  console.log(storeLatitude,storeLongitude)
   // Fetch products by barcode
+  
   const findProductMutation = useMutation({
-    mutationFn: async (barcode: string) => {
-      const response = await apiRequest('GET', `/api/products/barcode/${barcode}`);
-      return response.json();
+    mutationFn: async (input) => {
+      console.log("➡️ Mutation started with:", input);
+      const payload: any = {
+        barcode: input,
+        latitude: storeLatitude,
+        longitude: storeLongitude,
+      };
+      const response = await getProductByBartcode(payload);
+      console.log("✅ Product fetched:", response);
+      return response;
     },
-    onSuccess: (product) => {
+    onSuccess: (data) => {
+      const product = data.product
+      console.log("🎉 onSuccess fired:", product);
       addToCart(product);
       setBarcodeInput("");
       setIsScanning(false);
@@ -80,7 +108,8 @@ export default function CashierPOS() {
         description: `تم إضافة ${product.name} للسلة`,
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.log("❌ onError fired:", error);
       setBarcodeInput("");
       setIsScanning(false);
       toast({
@@ -90,6 +119,7 @@ export default function CashierPOS() {
       });
     },
   });
+  
 
   // Process order mutation
   const processOrderMutation = useMutation({
@@ -118,9 +148,18 @@ export default function CashierPOS() {
   // Handle barcode scanning
   const handleBarcodeSubmit = () => {
     if (!barcodeInput.trim()) return;
-    
+
+    // const input = barcodeInput.trim();
+    // const input = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
     const input = barcodeInput.trim();
-    
+    if (input.endsWith(".pdf")) {
+      setInvoiceUrl(input);
+      toast({
+        title: "تم تحميل الفاتوره",
+        description: "يمكنك الآن عرض أو طباعة الفاتورة من الأسفل.",
+      });
+      return;
+    }
     // Check if it's a QR code (starts with QR-) for customer orders
     if (input.startsWith('QR-') && activeTab === "qr-verification") {
       setQrInput(input);
@@ -154,7 +193,7 @@ export default function CashierPOS() {
         return [...prev, {
           id: product.id,
           name: product.name,
-          price: parseFloat(product.originalPrice),
+          price: parseFloat(product.pricing.final_price),
           quantity: 1,
           barcode: product.barcode
         }];
@@ -238,13 +277,13 @@ export default function CashierPOS() {
           if (!prev) return prev;
           return {
             ...prev,
-            items: prev.items.map(item => 
+            items: prev.items.map(item =>
               item.barcode === result.barcode
-                ? { 
-                    ...item, 
-                    scannedQuantity: result.scannedQuantity,
-                    isComplete: result.scannedQuantity >= item.quantity 
-                  }
+                ? {
+                  ...item,
+                  scannedQuantity: result.scannedQuantity,
+                  isComplete: result.scannedQuantity >= item.quantity
+                }
                 : item
             )
           };
@@ -343,7 +382,7 @@ export default function CashierPOS() {
   return (
     <div className="min-h-screen flex" dir="rtl">
       {!isSidebarCollapsed && <Sidebar />}
-      
+
       <main className="flex-1 overflow-hidden">
         <TopBar>
           <Button
@@ -355,7 +394,7 @@ export default function CashierPOS() {
             {isSidebarCollapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
           </Button>
         </TopBar>
-        
+
         <div className="p-4 overflow-y-auto h-full custom-scrollbar">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Header */}
@@ -410,7 +449,7 @@ export default function CashierPOS() {
                             className="flex-1 text-lg p-4"
                             disabled={isScanning}
                           />
-                          <Button 
+                          <Button
                             onClick={handleBarcodeSubmit}
                             disabled={isScanning || !barcodeInput.trim()}
                             className="px-6"
@@ -461,7 +500,7 @@ export default function CashierPOS() {
                                       </p>
                                     )}
                                   </div>
-                                  
+
                                   <div className="flex items-center gap-3">
                                     <div className="flex items-center gap-2">
                                       <Button
@@ -482,13 +521,13 @@ export default function CashierPOS() {
                                         <Plus className="h-3 w-3" />
                                       </Button>
                                     </div>
-                                    
+
                                     <div className="text-center">
                                       <p className="font-bold text-lg">
                                         {(item.price * item.quantity).toLocaleString('ar-SA')} ر.س
                                       </p>
                                     </div>
-                                    
+
                                     <Button
                                       variant="destructive"
                                       size="sm"
@@ -544,8 +583,8 @@ export default function CashierPOS() {
                         </div>
 
                         <div className="space-y-3">
-                          <Button 
-                            className="w-full" 
+                          <Button
+                            className="w-full"
                             size="lg"
                             disabled={cart.length === 0 || processOrderMutation.isPending}
                             onClick={handleProcessOrder}
@@ -563,8 +602,8 @@ export default function CashierPOS() {
                             )}
                           </Button>
 
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             className="w-full"
                             onClick={clearCart}
                             disabled={cart.length === 0}
@@ -604,7 +643,7 @@ export default function CashierPOS() {
                               className="flex-1 text-lg p-4"
                               autoFocus
                             />
-                            <Button 
+                            <Button
                               onClick={handleBarcodeSubmit}
                               disabled={fetchQROrderMutation.isPending}
                               className="px-6"
@@ -627,9 +666,36 @@ export default function CashierPOS() {
                         </div>
                       </CardContent>
                     </Card>
+                    {invoiceUrl && (
+                <Card className="p-4">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span>عرض الفاتورة</span>
+                      <Button variant="outline" onClick={() => window.open(invoiceUrl, "_blank")}>
+                        فتح في نافذة جديدة
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <iframe
+                      src={invoiceUrl}
+                      className="w-full h-[600px] border rounded-lg"
+                      title="Invoice PDF"
+                    />
+                    <Button
+                      className="w-full "
+                      onClick={() => {
+                        const iframe = document.querySelector("iframe") as HTMLIFrameElement;
+                        if (iframe) iframe.contentWindow?.print();
+                      }}
+                    >
+                      🖨️ طباعة الفاتورة
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
 
-                    {/* Test QR Generator */}
-                    <TestQRGenerator />
+                   
                   </div>
                 ) : (
                   /* Order Verification Interface */
@@ -658,7 +724,7 @@ export default function CashierPOS() {
                               className="flex-1 text-lg p-4"
                               disabled={isQRScanning}
                             />
-                            <Button 
+                            <Button
                               onClick={handleBarcodeSubmit}
                               disabled={isQRScanning || !barcodeInput.trim()}
                               className="px-6"
@@ -708,7 +774,7 @@ export default function CashierPOS() {
                                       </p>
                                     </div>
                                   </div>
-                                  
+
                                   <div className="text-center">
                                     <div className="flex items-center justify-center gap-1 mb-2">
                                       {getVerificationCircles(item.quantity, item.scannedQuantity)}
@@ -774,7 +840,7 @@ export default function CashierPOS() {
                             <div className="space-y-2">
                               {getMissingItems().map((item, index) => (
                                 <div key={index} className="flex justify-between text-sm">
-                                  <span>{item.productName}</span>
+                                  <span>{item.name}</span>
                                   <span>{item.quantity - item.scannedQuantity} قطعة</span>
                                 </div>
                               ))}
@@ -825,6 +891,8 @@ export default function CashierPOS() {
                   </div>
                 )}
               </TabsContent>
+              
+
             </Tabs>
           </div>
         </div>

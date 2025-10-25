@@ -75,11 +75,11 @@ export const signInWithEmailAndPassword = async (email:string,password:string) =
         userRole = response.data.role
         if (userId !== null && userId !== undefined)
             localStorage.setItem('userId', userId.toString());
-          if (userSlug)
-            localStorage.setItem('userSlug', userSlug);
-          if (userRole)
+        
+        if (userRole)
             localStorage.setItem('userRole', userRole);
-          
+        
+        localStorage.setItem('userSlug', userSlug);
 
         await getUserData(access);
         return response.data;

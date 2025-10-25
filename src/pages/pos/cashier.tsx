@@ -27,7 +27,7 @@ interface CartItem {
 
 interface QROrderItem {
   productId: number;
-  productName: string;
+  name: string;
   barcode: string;
   quantity: number;
   unitPrice: number;
@@ -86,17 +86,20 @@ export default function CashierPOS() {
   // Fetch products by barcode
   
   const findProductMutation = useMutation({
-    
-    mutationFn: async() =>{
-      const payload:any = {
-        "barcode": barcodeInput,
-        "latitude": storeLatitude,
-        "longitude": storeLongitude,
-      }
+    mutationFn: async (input) => {
+      console.log("➡️ Mutation started with:", input);
+      const payload: any = {
+        barcode: input,
+        latitude: storeLatitude,
+        longitude: storeLongitude,
+      };
       const response = await getProductByBartcode(payload);
-      return response
-    } ,
-    onSuccess: (product) => {
+      console.log("✅ Product fetched:", response);
+      return response;
+    },
+    onSuccess: (data) => {
+      const product = data.product
+      console.log("🎉 onSuccess fired:", product);
       addToCart(product);
       setBarcodeInput("");
       setIsScanning(false);
@@ -105,7 +108,8 @@ export default function CashierPOS() {
         description: `تم إضافة ${product.name} للسلة`,
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.log("❌ onError fired:", error);
       setBarcodeInput("");
       setIsScanning(false);
       toast({
@@ -115,6 +119,7 @@ export default function CashierPOS() {
       });
     },
   });
+  
 
   // Process order mutation
   const processOrderMutation = useMutation({
@@ -145,7 +150,8 @@ export default function CashierPOS() {
     if (!barcodeInput.trim()) return;
 
     // const input = barcodeInput.trim();
-    const input = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+    // const input = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+    const input = barcodeInput.trim();
     if (input.endsWith(".pdf")) {
       setInvoiceUrl(input);
       toast({
@@ -187,7 +193,7 @@ export default function CashierPOS() {
         return [...prev, {
           id: product.id,
           name: product.name,
-          price: parseFloat(product.originalPrice),
+          price: parseFloat(product.pricing.final_price),
           quantity: 1,
           barcode: product.barcode
         }];
@@ -834,7 +840,7 @@ export default function CashierPOS() {
                             <div className="space-y-2">
                               {getMissingItems().map((item, index) => (
                                 <div key={index} className="flex justify-between text-sm">
-                                  <span>{item.productName}</span>
+                                  <span>{item.name}</span>
                                   <span>{item.quantity - item.scannedQuantity} قطعة</span>
                                 </div>
                               ))}

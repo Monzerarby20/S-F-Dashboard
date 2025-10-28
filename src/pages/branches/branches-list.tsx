@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
 
-import { getStoreBranches, createNewBranch } from "@/services/branches";
+import { getStoreBranches, createNewBranch, updateBranch } from "@/services/branches";
 
 type BranchFormData = z.infer<typeof insertBranchSchema>;
 
@@ -43,48 +43,54 @@ export default function BranchesList() {
   const handleDeleteBranch = (branch: any) => {
     setDeleteDialog({ isOpen: true, branch });
   }
+  if(!storeSlug)return <Loading/>;
 
   const { data: branches, isLoading } = useQuery({
-    queryKey: ['branches'],
+    queryKey: ['branches',storeSlug],
     queryFn: () => getStoreBranches(storeSlug),
+    enabled: !!storeSlug,
   })
-
-
+  
   // useEffect(() => {
-  //   const fetchBranches = async () => {
-  //     const data = await mockApi.getBranches();
-  //     setBranches(data || []);
-  //   };
-  //   fetchBranches();
-  // }, []);
-  const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
-  const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
-
-  const [openingHours, setOpeningHours] = useState(
-    days.reduce((acc, day) => ({ ...acc, [day]: { ...defaultDaySchedule } }), {})
-  );
-  useEffect(() => {
-    if (editingBranch) {
-      branchForm.reset({
-        name: editingBranch.name || "",
-        description: editingBranch.description || "",
-        phone: editingBranch.phone || "",
-        email: editingBranch.email || "",
-        address: editingBranch.address || "",
-        city: editingBranch.city || "",
-        state: editingBranch.state || "",
-        country: editingBranch.country || "",
-        postal_code: editingBranch.postal_code || "",
-        latitude: editingBranch.latitude || "",
-        longitude: editingBranch.longitude || "",
-        is_main_branch: editingBranch.is_main_branch || false,
-        opening_hours: editingBranch.opening_hours || {},
-      });
-    } else {
-      branchForm.reset(); // لو إنشاء جديد
-    }
-  }, [editingBranch]);
-
+    //   const fetchBranches = async () => {
+      //     const data = await mockApi.getBranches();
+      //     setBranches(data || []);
+      //   };
+      //   fetchBranches();
+      // }, []);
+      const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
+      const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
+      
+      const [openingHours, setOpeningHours] = useState(
+        days.reduce((acc, day) => ({ ...acc, [day]: { ...defaultDaySchedule } }), {})
+      );
+      useEffect(() => {
+        if (editingBranch) {
+          branchForm.reset({
+            name: editingBranch.name || "",
+            description: editingBranch.description || "",
+            phone: editingBranch.phone || "",
+            email: editingBranch.email || "",
+            address: editingBranch.address || "",
+            city: editingBranch.city || "",
+            state: editingBranch.state || "",
+            country: editingBranch.country || "",
+            postal_code: editingBranch.postal_code || "",
+            latitude: editingBranch.latitude || "",
+            longitude: editingBranch.longitude || "",
+            is_main_branch: editingBranch.is_main_branch || false,
+            opening_hours: editingBranch.opening_hours || {},
+          });
+        } else {
+          branchForm.reset(); // لو إنشاء جديد
+        }
+      }, [editingBranch]);
+      
+      let branchSlug = ""
+      if(editingBranch){
+        branchSlug = editingBranch.slug || ""
+      }
+      console.log("branch slug",branchSlug)
 
   function handleDayChange(day: any, field: any, value: any) {
     setOpeningHours(prev => ({
@@ -125,6 +131,7 @@ export default function BranchesList() {
   });
 
 
+
   const createBranchMutation = useMutation({
     mutationFn: async (data: BranchFormData) => {
       return await createNewBranch(storeSlug!, data);
@@ -148,12 +155,11 @@ export default function BranchesList() {
   });
 
   const updateBranchMutation = useMutation({
-    mutationFn: async (data: BranchFormData) => {
-      const response = await apiRequest('PUT', `/api/branches/${editingBranch.id}`, data);
-      return response.json();
+    mutationFn: async ({ branchSlug, data }: { branchSlug: string; data: BranchFormData }) => {
+      return await updateBranch(storeSlug!, branchSlug, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/branches'] });
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
       setIsDialogOpen(false);
       resetForm();
       toast({
@@ -161,7 +167,8 @@ export default function BranchesList() {
         description: "تم تحديث الفرع بنجاح",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("❌ Update error:", error);
       toast({
         title: "خطأ",
         description: "فشل في تحديث الفرع",
@@ -169,6 +176,7 @@ export default function BranchesList() {
       });
     },
   });
+  
 
   const deleteBranchMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -224,10 +232,13 @@ export default function BranchesList() {
       ...data,
       opening_hours: openingHours,
     };
+  
     if (editingBranch) {
-      console.log(finalPayload)
-      updateBranchMutation.mutate(finalPayload);
+      const branchSlug = editingBranch.slug; // 👈 هنا بنجيبها لحظيًا
+      console.log("🟢 Updating branch:", branchSlug, finalPayload);
+      updateBranchMutation.mutate({ branchSlug, data: finalPayload });
     } else {
+      console.log("🟢 Creating new branch:", finalPayload);
       createBranchMutation.mutate(finalPayload);
     }
   };
@@ -546,7 +557,7 @@ export default function BranchesList() {
                       )}
 
                       <div className="text-xs text-gray-500 pt-2 border-t">
-                        تم الإنشاء: {new Date(branch.createdAt).toLocaleDateString('ar-SA')}
+                        تم الإنشاء: {new Date(branch.created_at).toLocaleDateString('ar-SA')}
                       </div>
 
                       <div className="flex justify-end gap-2 pt-3">

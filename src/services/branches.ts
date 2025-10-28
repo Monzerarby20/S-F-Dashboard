@@ -38,3 +38,14 @@ export const createNewBranch = async(stoerSlug:string,data:object) =>{
         throw error;
     }
 }
+
+export const updateBranch = async(storeSlug:string,branchSlug:string,data:object) => {
+    try{
+        const response = await api.put(`stores/stores/${storeSlug}/branches/${branchSlug}/`,data)
+        console.log("Updated branch data successfully",response);
+        return response.data.results
+    }catch(error){
+        console.error("could't update data branch",error);
+        throw error;
+    }
+}

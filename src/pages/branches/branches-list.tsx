@@ -20,8 +20,9 @@ import { Building2, Plus, Edit, Trash2, MapPin, Phone, Users } from "lucide-reac
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
+import { Switch } from "@/components/ui/switch";
 
-import { getStoreBranches, createNewBranch, updateBranch } from "@/services/branches";
+import { getStoreBranches, createNewBranch, updateBranch, deleteBranch } from "@/services/branches";
 
 type BranchFormData = z.infer<typeof insertBranchSchema>;
 
@@ -43,54 +44,55 @@ export default function BranchesList() {
   const handleDeleteBranch = (branch: any) => {
     setDeleteDialog({ isOpen: true, branch });
   }
-  if(!storeSlug)return <Loading/>;
+  if (!storeSlug) return <Loading />;
 
   const { data: branches, isLoading } = useQuery({
-    queryKey: ['branches',storeSlug],
+    queryKey: ['branches', storeSlug],
     queryFn: () => getStoreBranches(storeSlug),
     enabled: !!storeSlug,
   })
-  
+
   // useEffect(() => {
-    //   const fetchBranches = async () => {
-      //     const data = await mockApi.getBranches();
-      //     setBranches(data || []);
-      //   };
-      //   fetchBranches();
-      // }, []);
-      const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
-      const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
-      
-      const [openingHours, setOpeningHours] = useState(
-        days.reduce((acc, day) => ({ ...acc, [day]: { ...defaultDaySchedule } }), {})
-      );
-      useEffect(() => {
-        if (editingBranch) {
-          branchForm.reset({
-            name: editingBranch.name || "",
-            description: editingBranch.description || "",
-            phone: editingBranch.phone || "",
-            email: editingBranch.email || "",
-            address: editingBranch.address || "",
-            city: editingBranch.city || "",
-            state: editingBranch.state || "",
-            country: editingBranch.country || "",
-            postal_code: editingBranch.postal_code || "",
-            latitude: editingBranch.latitude || "",
-            longitude: editingBranch.longitude || "",
-            is_main_branch: editingBranch.is_main_branch || false,
-            opening_hours: editingBranch.opening_hours || {},
-          });
-        } else {
-          branchForm.reset(); // لو إنشاء جديد
-        }
-      }, [editingBranch]);
-      
-      let branchSlug = ""
-      if(editingBranch){
-        branchSlug = editingBranch.slug || ""
-      }
-      console.log("branch slug",branchSlug)
+  //   const fetchBranches = async () => {
+  //     const data = await mockApi.getBranches();
+  //     setBranches(data || []);
+  //   };
+  //   fetchBranches();
+  // }, []);
+  const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
+  const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
+
+  const [openingHours, setOpeningHours] = useState(
+    days.reduce((acc, day) => ({ ...acc, [day]: { ...defaultDaySchedule } }), {})
+  );
+  useEffect(() => {
+    if (editingBranch) {
+      branchForm.reset({
+        name: editingBranch.name || "",
+        description: editingBranch.description || "",
+        phone: editingBranch.phone || "",
+        email: editingBranch.email || "",
+        address: editingBranch.address || "",
+        city: editingBranch.city || "",
+        state: editingBranch.state || "",
+        country: editingBranch.country || "",
+        postal_code: editingBranch.postal_code || "",
+        latitude: editingBranch.latitude || "",
+        longitude: editingBranch.longitude || "",
+        is_main_branch: editingBranch.is_main_branch || false,
+        is_active: editingBranch.is_active || true,
+        opening_hours: editingBranch.opening_hours || {},
+      });
+    } else {
+      branchForm.reset(); // لو إنشاء جديد
+    }
+  }, [editingBranch]);
+
+  let branchSlug = ""
+  if (editingBranch) {
+    branchSlug = editingBranch.slug || ""
+  }
+  console.log("branch slug", branchSlug)
 
   function handleDayChange(day: any, field: any, value: any) {
     setOpeningHours(prev => ({
@@ -118,6 +120,7 @@ export default function BranchesList() {
       latitude: "",
       longitude: "",
       is_main_branch: false,
+      is_active: true,
       opening_hours: {
         saturday: { open: "", close: "" },
         sunday: { open: "", close: "" },
@@ -176,16 +179,11 @@ export default function BranchesList() {
       });
     },
   });
-  
+
 
   const deleteBranchMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await apiRequest('DELETE', `/api/branches/${id}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'فشل في حذف الفرع');
-      }
-      return response;
+    mutationFn:  async ({ storeSlug, branchSlug }: { storeSlug: string; branchSlug: string }) => {
+      return await deleteBranch(storeSlug, branchSlug);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/branches'] });
@@ -211,14 +209,17 @@ export default function BranchesList() {
       address: branch.address,
       phone: branch.phone,
       email: branch.email,
-      isActive: branch.isActive,
+      is_active: branch.is_active??true,
     });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = () => {
     if (deleteDialog.branch) {
-      deleteBranchMutation.mutate(deleteDialog.branch.id);
+      deleteBranchMutation.mutate({
+        storeSlug: storeSlug!,
+        branchSlug: deleteDialog.branch.slug,
+      });
     }
   };
 
@@ -230,9 +231,10 @@ export default function BranchesList() {
   const handleSubmit = (data: BranchFormData) => {
     const finalPayload = {
       ...data,
+      is_active: Boolean(data.is_active),
       opening_hours: openingHours,
     };
-  
+    console.log("📦 Final payload sent to API:", finalPayload);
     if (editingBranch) {
       const branchSlug = editingBranch.slug; // 👈 هنا بنجيبها لحظيًا
       console.log("🟢 Updating branch:", branchSlug, finalPayload);
@@ -428,7 +430,7 @@ export default function BranchesList() {
                           </FormItem>
                         )}
                       />
-                        <FormField
+                      <FormField
                         control={branchForm.control}
                         name="longitude"
                         render={({ field }) => (
@@ -441,11 +443,26 @@ export default function BranchesList() {
                           </FormItem>
                         )}
                       />
+                      <FormField
+                        control={branchForm.control}
+                        name="is_active"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                            <FormLabel>هل الفرع نشط؟</FormLabel>
+                            <FormControl>
+                              <Switch
+                                checked={!!field.value}
+                                onCheckedChange={(checked) => field.onChange(checked)} 
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
 
 
 
 
-                      
+
 
                       {/* جدول مواعيد العمل نفس اللي في المتجر */}
                       <div className="border p-3 rounded-md">
@@ -522,8 +539,8 @@ export default function BranchesList() {
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-lg">{branch.name}</CardTitle>
-                        <Badge variant={branch.isActive ? "default" : "secondary"}>
-                          {branch.isActive ? "نشط" : "غير نشط"}
+                        <Badge variant={branch.is_active ? "default" : "secondary"}>
+                          {branch.is_active ? "نشط" : "غير نشط"}
                         </Badge>
                       </div>
                     </CardHeader>
@@ -571,7 +588,7 @@ export default function BranchesList() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDeleteBranch(branch.id)}
+                          onClick={() => handleDeleteBranch(branch)} 
                           className="text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" />

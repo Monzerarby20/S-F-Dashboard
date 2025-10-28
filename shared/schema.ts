@@ -21,6 +21,7 @@ export const insertBranchSchema = z.object({
   latitude: z.string().optional(),
   longitude: z.string().optional(),
   is_main_branch: z.boolean().default(false),
+  is_active: z.boolean().default(false),
   opening_hours: z.object({
     saturday: z.object({ open: z.string().optional(), close: z.string().optional() }).optional(),
     sunday: z.object({ open: z.string().optional(), close: z.string().optional() }).optional(),

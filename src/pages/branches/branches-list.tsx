@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertBranchSchema } from "@shared/schema";
@@ -21,7 +20,6 @@ import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
 import { Switch } from "@/components/ui/switch";
-
 import { getStoreBranches, createNewBranch, updateBranch, deleteBranch } from "@/services/branches";
 
 type BranchFormData = z.infer<typeof insertBranchSchema>;
@@ -33,12 +31,10 @@ export default function BranchesList() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<any>(null);
-  // const [branches, setBranches] = useState<any[]>([]);
+ 
   const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; branch: any | null }>({ isOpen: false, branch: null });
 
-  // const { data: branche, isLoading } = useQuery({
-  //   queryKey: ['/branches'],
-  // });
+ 
   const storeSlug = localStorage.getItem('userSlug')
   console.log(storeSlug)
   const handleDeleteBranch = (branch: any) => {
@@ -52,13 +48,7 @@ export default function BranchesList() {
     enabled: !!storeSlug,
   })
 
-  // useEffect(() => {
-  //   const fetchBranches = async () => {
-  //     const data = await mockApi.getBranches();
-  //     setBranches(data || []);
-  //   };
-  //   fetchBranches();
-  // }, []);
+  
   const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
   const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
 

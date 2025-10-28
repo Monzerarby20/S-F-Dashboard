@@ -62,3 +62,18 @@ export const deleteUser = async (userId: string): Promise<number> => {
     throw error;
   }
 };
+
+
+export const addNewUser = async(userData:object) =>{
+  try{
+    
+      const response =  await api.post("auth/register/", userData);
+      console.log("adding user successfully",response);
+      return response.data;
+
+    
+  }catch(error){
+    console.log("Problem with adding user",error)
+    throw error
+  }
+}

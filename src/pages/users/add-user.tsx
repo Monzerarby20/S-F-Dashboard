@@ -7,8 +7,7 @@ import { z } from "zod";
 import {
   UserPlus,
   Loader2,
-  Shield,
-  Settings,
+ 
   Store,
   Users,
   Package,
@@ -19,11 +18,12 @@ import {
   Gift,
   Calendar,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+
 import axios from "axios";
+import { addNewUser } from "@/services/users";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent,} from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -40,25 +40,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
+
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
-import { mockApi } from "@/services/mockData";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-interface Permission {
-  id: number;
-  name: string;
-  displayName: string;
-  description: string | null;
-  module: string;
-}
+
 
 interface Role {
   id: number;
@@ -86,9 +77,9 @@ const addUserSchema = z
     email: z.string().email("البريد الإلكتروني غير صحيح"),
     phone: z.string().min(10, "رقم الهاتف مطلوب"),
     job_title: z.string().min(2, "المسمى الوظيفي مطلوب"),
-    role: z.number().min(1, "يجب اختيار دور"),
-    store: z.number().optional(),
-    branch: z.number().optional(),
+    role: z.string().min(1, "يجب اختيار دور"),
+    store_id: z.number().optional(),
+    branch_id: z.number().optional(),
     gender: z.enum(["male", "female"], { required_error: "الجنس مطلوب" }),
     date_of_birth: z.string().min(1, "تاريخ الميلاد مطلوب"),
     password: z.string().min(6, "كلمة السر يجب أن تكون 6 أحرف على الأقل"),
@@ -147,9 +138,8 @@ export default function AddUserPage() {
   const { user, isLoading: authLoading } = useAuth();
 
   const [selectedPermissions, setSelectedPermissions] = useState<number[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
-  const [roles, setRoles] = useState<Role[]>([]);
+  // const [permissions, setPermissions] = useState<Permission[]>([]);
+  // const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [rolesLoading, setRolesLoading] = useState(true);
 
   const [stores, setStores] = useState<StoreType[]>([]);
@@ -169,23 +159,22 @@ export default function AddUserPage() {
       confirm_password: "",
       gender: "male",
       date_of_birth: "",
-      role: 5,
-      store: undefined,
-      branch: undefined,
-      is_active: true,
+      role: "",
+      store_id: undefined,
+      branch_id: undefined,
+      is_active: false,
     },
   });
-  
+
 
   // Fetch roles
-  useEffect(() => {
-    const fetchRoles = async () => {
-      const data = await mockApi.getRoles();
-      setRoles(data);
-      setRolesLoading(false);
-    };
-    fetchRoles();
-  }, []);
+  const staticRoles = [
+    { id: 1, name: "owner", displayName: "مدير عام" },
+    { id: 2, name: "manager", displayName: "مدير فرع" },
+    { id: 3, name: "cashier", displayName: "كاشير" },
+    { id: 4, name: "employee", displayName: "موظف" },
+  ];
+
 
   // Fetch stores
   useEffect(() => {
@@ -198,13 +187,13 @@ export default function AddUserPage() {
         const res = await axios.get(url, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-  
+
         // Normalize response whether backend uses pagination or not:
         const data = res.data && Array.isArray(res.data) ? res.data
-                    : res.data && Array.isArray(res.data.results) ? res.data.results
-                    : res.data && res.data.results ? res.data.results
-                    : [];
-  
+          : res.data && Array.isArray(res.data.results) ? res.data.results
+            : res.data && res.data.results ? res.data.results
+              : [];
+
         if (!Array.isArray(data)) {
           console.warn("Unexpected stores response shape:", res.data);
         }
@@ -223,55 +212,55 @@ export default function AddUserPage() {
     };
     fetchStores();
   }, [toast]);
-  
+
 
   // Fetch permissions
-  useEffect(() => {
-    const fetchPermissions = async () => {
-      const data = await mockApi.getPermissions();
-      setPermissions(data);
-      setPermissionsLoading(false);
-    };
-    fetchPermissions();
-  }, []);
+  // useEffect(() => {
+  //   const fetchPermissions = async () => {
+  //     const data = await mockApi.getPermissions();
+  //     setPermissions(data);
+  //     setPermissionsLoading(false);
+  //   };
+  //   fetchPermissions();
+  // }, []);
 
   // Fetch branches when store changes
   const handleStoreChange = async (selectedStoreIdOrSlug: number | string | undefined) => {
     // reset branch field
-    form.setValue("branch", undefined);
+    form.setValue("branch_id", undefined);
     setBranches([]);
-  
+
     if (!selectedStoreIdOrSlug) {
       return;
     }
-  
+
     try {
       setLoadingBranches(true);
-  
+
       // find store by id or slug
       const store = stores.find(s => s.id === Number(selectedStoreIdOrSlug) || s.slug === selectedStoreIdOrSlug);
       if (!store) {
         console.warn("Selected store not found in stores list:", selectedStoreIdOrSlug, stores);
         return;
       }
-  
+
       // prefer slug if available
       const storeSlug = store.slug ?? store.id;
       const token = localStorage.getItem("token");
       // Ensure BASE_URL ends with a single slash
       const base = BASE_URL?.endsWith("/") ? BASE_URL : `${BASE_URL}/`;
       const url = `${base}stores/stores/${storeSlug}/branches/`;
-  
+
       console.debug("Fetching branches from:", url);
       const res = await axios.get(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-  
+
       const data = res.data && Array.isArray(res.data) ? res.data
-                  : res.data && Array.isArray(res.data.results) ? res.data.results
-                  : res.data && res.data.results ? res.data.results
-                  : [];
-  
+        : res.data && Array.isArray(res.data.results) ? res.data.results
+          : res.data && res.data.results ? res.data.results
+            : [];
+
       if (!Array.isArray(data)) {
         console.warn("Unexpected branches response shape:", res.data);
       }
@@ -288,12 +277,11 @@ export default function AddUserPage() {
       setLoadingBranches(false);
     }
   };
-  
+
 
   const addUserMutation = useMutation({
-    mutationFn: async (userData: AddUserForm) => {
-      return await apiRequest("POST", "auth/register/", userData);
-    },
+   
+    mutationFn:(userDate:AddUserForm) => addNewUser(userDate),
     onSuccess: () => {
       toast({
         title: "تم إنشاء المستخدم بنجاح",
@@ -313,23 +301,35 @@ export default function AddUserPage() {
   });
 
   const onSubmit = (data: AddUserForm) => {
-    console.log("Submitting user data:", data);
-    addUserMutation.mutate(data);
+    const payload = {
+      gender: data.gender,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      email: data.email,
+      phone: data.phone,
+      password: data.password,
+      confirm_password: data.confirm_password,
+      date_of_birth: data.date_of_birth,
+      store_id: data.store_id || null,
+      role: data.role,
+      branch_id: data.branch_id || null,
+      job_title: data.job_title,
+      is_active: data.is_active ?? false, // لو مش متحددة هتكون false
+    };
+
+    console.log("Submitting user:", payload);
+    addUserMutation.mutate(payload);
   };
 
-  const handlePermissionToggle = (permissionId: number, checked: boolean) => {
-    if (checked) setSelectedPermissions((p) => [...p, permissionId]);
-    else setSelectedPermissions((p) => p.filter((id) => id !== permissionId));
-  };
+  // const handlePermissionToggle = (permissionId: number, checked: boolean) => {
+  //   if (checked) setSelectedPermissions((p) => [...p, permissionId]);
+  //   else setSelectedPermissions((p) => p.filter((id) => id !== permissionId));
+  // };
 
-  if (
-    authLoading ||
-    rolesLoading ||
-    permissionsLoading ||
-    loadingStores
-  ) {
+  if (authLoading  || loadingStores) {
     return <Loading />;
   }
+
 
   if (!user) {
     setLocation("/login");
@@ -337,11 +337,11 @@ export default function AddUserPage() {
   }
 
   // Group permissions by module
-  const permissionsByModule = permissions.reduce((acc: any, permission) => {
-    if (!acc[permission.module]) acc[permission.module] = [];
-    acc[permission.module].push(permission);
-    return acc;
-  }, {});
+  // const permissionsByModule = permissions.reduce((acc: any, permission) => {
+  //   if (!acc[permission.module]) acc[permission.module] = [];
+  //   acc[permission.module].push(permission);
+  //   return acc;
+  // }, {});
 
   return (
     <PageLayout maxWidth="2xl">
@@ -429,160 +429,160 @@ export default function AddUserPage() {
                   )}
                 />
 
-               {/* Store Select */}
-<FormField
-  control={form.control}
-  name="store"
-  render={({ field }) => (
-    <FormItem>
-      <FormLabel className="text-sm">المتجر</FormLabel>
-      <Select
-        onValueChange={(value) => {
-          field.onChange(value ? Number(value) : undefined);
-          const store = stores.find((s) => s.id === Number(value));
-          if (store) {
-            handleStoreChange(store.slug ?? store.id);
-          }
-        }}
-        value={field.value?.toString() || ""}
-        disabled={loadingStores}
-      >
-        <SelectTrigger className="w-full">
-          {loadingStores
-            ? "جاري تحميل المتاجر..."
-            : field.value
-            ? stores.find((s) => s.id === Number(field.value))?.name || "اختر المتجر"
-            : "اختر المتجر"}
-        </SelectTrigger>
+                {/* Store Select */}
+                <FormField
+                  control={form.control}
+                  name="store_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm">المتجر</FormLabel>
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(value ? Number(value) : undefined);
+                          const store = stores.find((s) => s.id === Number(value));
+                          if (store) {
+                            handleStoreChange(store.slug ?? store.id);
+                          }
+                        }}
+                        value={field.value?.toString() || ""}
+                        disabled={loadingStores}
+                      >
+                        <SelectTrigger className="w-full">
+                          {loadingStores
+                            ? "جاري تحميل المتاجر..."
+                            : field.value
+                              ? stores.find((s) => s.id === Number(field.value))?.name || "اختر المتجر"
+                              : "اختر المتجر"}
+                        </SelectTrigger>
 
-        <SelectContent>
-          {stores.length > 0 ? (
-            stores.map((store) => (
-              <SelectItem key={store.id} value={store.id.toString()}>
-                {store.name}
-              </SelectItem>
-            ))
-          ) : (
-            <div className="p-2 text-gray-500 text-sm text-center">
-              لا توجد متاجر متاحة
-            </div>
-          )}
-        </SelectContent>
-      </Select>
-      <FormMessage />
-    </FormItem>
-  )}
-/>
+                        <SelectContent>
+                          {stores.length > 0 ? (
+                            stores.map((store) => (
+                              <SelectItem key={store.id} value={store.id.toString()}>
+                                {store.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="p-2 text-gray-500 text-sm text-center">
+                              لا توجد متاجر متاحة
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-{/* Branch Select */}
-<FormField
-  control={form.control}
-  name="branch"
-  render={({ field }) => (
-    <FormItem>
-      <FormLabel className="text-sm">الفرع</FormLabel>
-      <Select
-        disabled={!form.watch("store") || loadingBranches}
-        onValueChange={(value) =>
-          field.onChange(value ? Number(value) : undefined)
-        }
-        value={field.value?.toString() || ""}
-      >
-        <SelectTrigger className="w-full">
-          {!form.watch("store")
-            ? "اختر المتجر أولاً"
-            : loadingBranches
-            ? "جاري تحميل الفروع..."
-            : field.value
-            ? branches.find((b) => b.id === Number(field.value))?.name ||
-              "اختر الفرع"
-            : "اختر الفرع"}
-        </SelectTrigger>
+                {/* Branch Select */}
+                <FormField
+                  control={form.control}
+                  name="branch_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm">الفرع</FormLabel>
+                      <Select
+                        disabled={!form.watch("store_id") || loadingBranches}
+                        onValueChange={(value) =>
+                          field.onChange(value ? Number(value) : undefined)
+                        }
+                        value={field.value?.toString() || ""}
+                      >
+                        <SelectTrigger className="w-full">
+                          {!form.watch("store_id")
+                            ? "اختر المتجر أولاً"
+                            : loadingBranches
+                              ? "جاري تحميل الفروع..."
+                              : field.value
+                                ? branches.find((b) => b.id === Number(field.value))?.name ||
+                                "اختر الفرع"
+                                : "اختر الفرع"}
+                        </SelectTrigger>
 
-        <SelectContent>
-          {branches.length > 0 ? (
-            branches.map((branch) => (
-              <SelectItem key={branch.id} value={branch.id.toString()}>
-                {branch.name}
-              </SelectItem>
-            ))
-          ) : (
-            <div className="p-2 text-gray-500 text-sm text-center">
-              {!form.watch("store")
-                ? "اختر المتجر أولاً"
-                : "لا توجد فروع متاحة"}
-            </div>
-          )}
-        </SelectContent>
-      </Select>
-      <FormMessage />
-    </FormItem>
-  )}
-/>
+                        <SelectContent>
+                          {branches.length > 0 ? (
+                            branches.map((branch) => (
+                              <SelectItem key={branch.id} value={branch.id.toString()}>
+                                {branch.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="p-2 text-gray-500 text-sm text-center">
+                              {!form.watch("store_id")
+                                ? "اختر المتجر أولاً"
+                                : "لا توجد فروع متاحة"}
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
 
                 {/* Gender Select */}
-<FormField
-  control={form.control}
-  name="gender"
-  render={({ field }) => (
-    <FormItem>
-      <FormLabel>الجنس</FormLabel>
-      <Select
-        onValueChange={field.onChange}
-        value={field.value || ""}
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="اختر الجنس" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="male">ذكر</SelectItem>
-          <SelectItem value="female">أنثى</SelectItem>
-        </SelectContent>
-      </Select>
-      <FormMessage />
-    </FormItem>
-  )}
-/>
+                <FormField
+                  control={form.control}
+                  name="gender"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>الجنس</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || ""}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر الجنس" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">ذكر</SelectItem>
+                          <SelectItem value="female">أنثى</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-{/* Date of Birth */}
-<FormField
-  control={form.control}
-  name="date_of_birth"
-  render={({ field }) => (
-    <FormItem>
-      <FormLabel>تاريخ الميلاد</FormLabel>
-      <Input type="date" {...field} />
-      <FormMessage />
-    </FormItem>
-  )}
-/>
+                {/* Date of Birth */}
+                <FormField
+                  control={form.control}
+                  name="date_of_birth"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>تاريخ الميلاد</FormLabel>
+                      <Input type="date" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-{/* Password */}
-<FormField
-  control={form.control}
-  name="password"
-  render={({ field }) => (
-    <FormItem>
-      <FormLabel>كلمة المرور</FormLabel>
-      <Input type="password" {...field} />
-      <FormMessage />
-    </FormItem>
-  )}
-/>
+                {/* Password */}
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>كلمة المرور</FormLabel>
+                      <Input type="password" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-{/* Confirm Password */}
-<FormField
-  control={form.control}
-  name="confirm_password"
-  render={({ field }) => (
-    <FormItem>
-      <FormLabel>تأكيد كلمة المرور</FormLabel>
-      <Input type="password" {...field} />
-      <FormMessage />
-    </FormItem>
-  )}
-/>
+                {/* Confirm Password */}
+                <FormField
+                  control={form.control}
+                  name="confirm_password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>تأكيد كلمة المرور</FormLabel>
+                      <Input type="password" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
 
                 {/* Role */}
@@ -593,7 +593,7 @@ export default function AddUserPage() {
                     <FormItem>
                       <FormLabel>الدور *</FormLabel>
                       <Select
-                        onValueChange={(value) => field.onChange(parseInt(value))}
+                        onValueChange={(value) => field.onChange(value)}
                         value={field.value?.toString() || ""}
                       >
                         <FormControl>
@@ -602,8 +602,8 @@ export default function AddUserPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {roles.map((role) => (
-                            <SelectItem key={role.id} value={role.id.toString()}>
+                          {staticRoles.map((role) => (
+                            <SelectItem key={role.name} value={role.name}>
                               {role.displayName}
                             </SelectItem>
                           ))}
@@ -613,10 +613,11 @@ export default function AddUserPage() {
                     </FormItem>
                   )}
                 />
+
               </div>
 
               {/* Permissions */}
-              <div className="pt-6 border-t">
+              {/* <div className="pt-6 border-t">
                 <div className="flex items-center gap-2 mb-4">
                   <Shield className="h-5 w-5 text-purple-600" />
                   <h3 className="text-lg font-semibold">إدارة الصلاحيات</h3>
@@ -680,7 +681,7 @@ export default function AddUserPage() {
                     </Card>
                   );
                 })}
-              </div>
+              </div> */}
 
               {/* Submit */}
               <div className="flex gap-3 pt-6 border-t">
@@ -706,3 +707,4 @@ export default function AddUserPage() {
     </PageLayout>
   );
 }
+

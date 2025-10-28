@@ -20,7 +20,8 @@ import { Building2, Plus, Edit, Trash2, MapPin, Phone, Users } from "lucide-reac
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-import mockApi from "@/services/mockData";
+
+import { getStoreBranches, createNewBranch } from "@/services/branches";
 
 type BranchFormData = z.infer<typeof insertBranchSchema>;
 
@@ -28,46 +29,108 @@ export default function BranchesList() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<any>(null);
-  const [branches, setBranches] = useState<any[]>([]);
+  // const [branches, setBranches] = useState<any[]>([]);
   const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; branch: any | null }>({ isOpen: false, branch: null });
 
-  const { data: branche, isLoading } = useQuery({
-    queryKey: ['/branches'],
-  });
+  // const { data: branche, isLoading } = useQuery({
+  //   queryKey: ['/branches'],
+  // });
+  const storeSlug = localStorage.getItem('userSlug')
+  console.log(storeSlug)
   const handleDeleteBranch = (branch: any) => {
     setDeleteDialog({ isOpen: true, branch });
   }
-  
 
+  const { data: branches, isLoading } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => getStoreBranches(storeSlug),
+  })
+
+
+  // useEffect(() => {
+  //   const fetchBranches = async () => {
+  //     const data = await mockApi.getBranches();
+  //     setBranches(data || []);
+  //   };
+  //   fetchBranches();
+  // }, []);
+  const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
+  const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
+
+  const [openingHours, setOpeningHours] = useState(
+    days.reduce((acc, day) => ({ ...acc, [day]: { ...defaultDaySchedule } }), {})
+  );
   useEffect(() => {
-    const fetchBranches = async () => {
-      const data = await mockApi.getBranches();
-      setBranches(data || []);
-    };
-    fetchBranches();
-  }, []);
+    if (editingBranch) {
+      branchForm.reset({
+        name: editingBranch.name || "",
+        description: editingBranch.description || "",
+        phone: editingBranch.phone || "",
+        email: editingBranch.email || "",
+        address: editingBranch.address || "",
+        city: editingBranch.city || "",
+        state: editingBranch.state || "",
+        country: editingBranch.country || "",
+        postal_code: editingBranch.postal_code || "",
+        latitude: editingBranch.latitude || "",
+        longitude: editingBranch.longitude || "",
+        is_main_branch: editingBranch.is_main_branch || false,
+        opening_hours: editingBranch.opening_hours || {},
+      });
+    } else {
+      branchForm.reset(); // لو إنشاء جديد
+    }
+  }, [editingBranch]);
 
+
+  function handleDayChange(day: any, field: any, value: any) {
+    setOpeningHours(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [field]: value,
+        ...(field === "closed" && value ? { all_day: false } : {}),
+        ...(field === "all_day" && value ? { closed: false } : {}),
+      },
+    }));
+  }
   const branchForm = useForm<BranchFormData>({
     resolver: zodResolver(insertBranchSchema),
     defaultValues: {
       name: "",
-      address: "",
+      description: "",
       phone: "",
       email: "",
-      isActive: true,
+      address: "",
+      city: "",
+      state: "",
+      country: "",
+      postal_code: "",
+      latitude: "",
+      longitude: "",
+      is_main_branch: false,
+      opening_hours: {
+        saturday: { open: "", close: "" },
+        sunday: { open: "", close: "" },
+        monday: "",
+        tuesday: "",
+        wednesday: "",
+        thursday: { open: "", close: "" },
+        friday: { open: "", close: "" },
+      },
     },
   });
 
+
   const createBranchMutation = useMutation({
     mutationFn: async (data: BranchFormData) => {
-      const response = await apiRequest('POST', '/branches', data);
-      return response.json();
+      return await createNewBranch(storeSlug!, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/branches'] });
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
       setIsDialogOpen(false);
       resetForm();
       toast({
@@ -157,10 +220,15 @@ export default function BranchesList() {
   };
 
   const handleSubmit = (data: BranchFormData) => {
+    const finalPayload = {
+      ...data,
+      opening_hours: openingHours,
+    };
     if (editingBranch) {
-      updateBranchMutation.mutate(data);
+      console.log(finalPayload)
+      updateBranchMutation.mutate(finalPayload);
     } else {
-      createBranchMutation.mutate(data);
+      createBranchMutation.mutate(finalPayload);
     }
   };
 
@@ -185,10 +253,10 @@ export default function BranchesList() {
   return (
     <div className="min-h-screen flex" dir="rtl">
       <Sidebar />
-      
+
       <main className="flex-1 overflow-hidden">
         <TopBar />
-        
+
         <div className="p-6 overflow-y-auto h-full custom-scrollbar">
           <div className="space-y-6">
             {/* عنوان الصفحة */}
@@ -199,7 +267,7 @@ export default function BranchesList() {
                   إدارة الفروع
                 </h1>
               </div>
-              
+
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={resetForm}>
@@ -213,15 +281,17 @@ export default function BranchesList() {
                       {editingBranch ? "تعديل الفرع" : "إضافة فرع جديد"}
                     </DialogTitle>
                   </DialogHeader>
-                  
+
                   <Form {...branchForm}>
-                    <form onSubmit={branchForm.handleSubmit(handleSubmit)} className="space-y-4">
+                    <form
+                      onSubmit={branchForm.handleSubmit(handleSubmit)}
+                    >
                       <FormField
                         control={branchForm.control}
                         name="name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>اسم الفرع *</FormLabel>
+                            <FormLabel>اسم الفرع</FormLabel>
                             <FormControl>
                               <Input placeholder="اسم الفرع" {...field} />
                             </FormControl>
@@ -229,7 +299,46 @@ export default function BranchesList() {
                           </FormItem>
                         )}
                       />
+                      <FormField
+                        control={branchForm.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>"وصف الفرع</FormLabel>
+                            <FormControl>
+                              <Textarea placeholder="وصف الفرع" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={branchForm.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>رقم الهاتف</FormLabel>
+                            <FormControl>
+                              <Input placeholder="رقم الهاتف" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={branchForm.control}
+                        name="email"
 
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>البريد الإلكتروني</FormLabel>
+                            <FormControl>
+                              <Input type="email" placeholder="البريد الإلكتروني" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                       <FormField
                         control={branchForm.control}
                         name="address"
@@ -237,71 +346,147 @@ export default function BranchesList() {
                           <FormItem>
                             <FormLabel>العنوان</FormLabel>
                             <FormControl>
-                              <Textarea 
-                                placeholder="عنوان الفرع الكامل"
-                                className="min-h-[80px]"
-                                {...field} 
-                              />
+                              <Input placeholder="العنوان" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={branchForm.control}
+                        name="city"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>المدينة</FormLabel>
+                            <FormControl>
+                              <Input placeholder="المدينة" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={branchForm.control}
+                        name="state"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>المحافظة</FormLabel>
+                            <FormControl>
+                              <Input placeholder="المحافظة" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={branchForm.control}
+                        name="country"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>الدولة</FormLabel>
+                            <FormControl>
+                              <Input placeholder="الدولة" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={branchForm.control}
+                        name="postal_code"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>الرمز البريدي</FormLabel>
+                            <FormControl>
+                              <Input placeholder="الرمز البريدي" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={branchForm.control}
+                        name="latitude"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>خط العرض (latitude)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="خط العرض (latitude)" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                        <FormField
+                        control={branchForm.control}
+                        name="longitude"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>خط الطول (longitude)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="خط الطول (longitude)" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                          control={branchForm.control}
-                          name="phone"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>رقم الهاتف</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  placeholder="05xxxxxxxx"
-                                  {...field} 
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
 
-                        <FormField
-                          control={branchForm.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>البريد الإلكتروني</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  type="email"
-                                  placeholder="branch@store.com"
-                                  {...field} 
+
+
+                      
+
+                      {/* جدول مواعيد العمل نفس اللي في المتجر */}
+                      <div className="border p-3 rounded-md">
+                        <h4 className="font-semibold mb-2">مواعيد العمل</h4>
+                        {days.map(day => (
+                          <div key={day} className="flex items-center justify-between border-b py-2">
+                            <span className="capitalize w-24">{day}</span>
+                            <div className="flex items-center gap-2">
+                              <label className="flex items-center gap-1">
+                                <input
+                                  type="checkbox"
+                                  checked={openingHours[day].closed}
+                                  onChange={e => handleDayChange(day, "closed", e.target.checked)}
                                 />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                                مغلق
+                              </label>
+                              <label className="flex items-center gap-1">
+                                <input
+                                  type="checkbox"
+                                  checked={openingHours[day].all_day}
+                                  onChange={e => handleDayChange(day, "all_day", e.target.checked)}
+                                />
+                                24 ساعة
+                              </label>
+                            </div>
+                            {!openingHours[day].closed && !openingHours[day].all_day && (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="time"
+                                  value={openingHours[day].open}
+                                  onChange={e => handleDayChange(day, "open", e.target.value)}
+                                  className="w-28"
+                                />
+                                <Input
+                                  type="time"
+                                  value={openingHours[day].close}
+                                  onChange={e => handleDayChange(day, "close", e.target.value)}
+                                  className="w-28"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
 
-                      <div className="flex justify-end gap-2 pt-4">
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          onClick={() => setIsDialogOpen(false)}
-                        >
-                          إلغاء
-                        </Button>
-                        <Button 
-                          type="submit"
-                          disabled={createBranchMutation.isPending || updateBranchMutation.isPending}
-                        >
-                          {editingBranch ? "تحديث الفرع" : "إنشاء الفرع"}
-                        </Button>
+                      <div className="flex justify-end">
+                        <Button type="submit">حفظ</Button>
                       </div>
                     </form>
+
                   </Form>
+
                 </DialogContent>
               </Dialog>
             </div>
@@ -331,7 +516,7 @@ export default function BranchesList() {
                         </Badge>
                       </div>
                     </CardHeader>
-                    
+
                     <CardContent className="space-y-3">
                       {branch.address && (
                         <div className="flex items-start gap-2">
@@ -341,7 +526,7 @@ export default function BranchesList() {
                           </p>
                         </div>
                       )}
-                      
+
                       {branch.phone && (
                         <div className="flex items-center gap-2">
                           <Phone className="h-4 w-4 text-gray-500" />
@@ -350,7 +535,7 @@ export default function BranchesList() {
                           </p>
                         </div>
                       )}
-                      
+
                       {branch.email && (
                         <div className="flex items-center gap-2">
                           <Users className="h-4 w-4 text-gray-500" />
@@ -359,11 +544,11 @@ export default function BranchesList() {
                           </p>
                         </div>
                       )}
-                      
+
                       <div className="text-xs text-gray-500 pt-2 border-t">
                         تم الإنشاء: {new Date(branch.createdAt).toLocaleDateString('ar-SA')}
                       </div>
-                      
+
                       <div className="flex justify-end gap-2 pt-3">
                         <Button
                           variant="ghost"

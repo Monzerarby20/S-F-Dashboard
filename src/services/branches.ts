@@ -27,3 +27,14 @@ export const getStoreBranches = async(storeSlug:any) =>{
         throw error
     }
 }
+
+export const createNewBranch = async(stoerSlug:string,data:object) =>{
+    try{
+        const response = await api.post(`stores/stores/${stoerSlug}/branches/`,data);
+        console.log("Create branch successfully",response)
+        return response.data;
+    }catch(error){
+        console.log("problem with adding branch",error);
+        throw error;
+    }
+}

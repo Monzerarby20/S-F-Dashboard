@@ -89,20 +89,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   
-
   const logout = async () => {
     try {
-      console.log('Logging out...');
       await signOut();
       localStorage.removeItem('user');
+      queryClient.clear(); // ✅ يمسح كل الكاش بسرعة
       setUser(null);
-      
-      console.log('Logout successful');
-      // Force page reload to clear any cached data
       window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);
-      // Even if signOut fails, clear user state
+      queryClient.clear();
       setUser(null);
       window.location.href = '/';
     }

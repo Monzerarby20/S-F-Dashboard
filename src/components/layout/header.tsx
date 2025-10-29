@@ -9,11 +9,22 @@ import {
 import { useTheme } from "next-themes";
 import { Bell, Settings, User, LogOut, Sun, Moon } from "lucide-react";
 import { Link } from "wouter";
-import { useAuth } from "@/hooks/useAuth";
-
+import { signOut } from "@/services/auth";
 export function Header() {
   const { theme, setTheme } = useTheme();
-  const { user, logout } = useAuth();
+  
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(); 
+      localStorage.removeItem("user"); 
+      window.location.href = "/"; 
+    } catch (error) {
+      console.error("Error during sign out:", error);
+      localStorage.removeItem("user");
+      window.location.href = "/";
+    }
+  };
 
   return (
     <header className="border-b bg-background">
@@ -54,7 +65,7 @@ export function Header() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout}>
+              <DropdownMenuItem onClick={handleSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />
                 تسجيل الخروج
               </DropdownMenuItem>

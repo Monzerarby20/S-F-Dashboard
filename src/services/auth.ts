@@ -73,13 +73,9 @@ export const signInWithEmailAndPassword = async (email:string,password:string) =
         userId = response.data.user_id;
         userSlug = response.data.store_slug;
         userRole = response.data.role
-        if (userId !== null && userId !== undefined)
-            localStorage.setItem('userId', userId.toString());
-        
-        if (userRole)
-            localStorage.setItem('userRole', userRole);
-        
+        localStorage.setItem('userId', userId.toString());
         localStorage.setItem('userSlug', userSlug);
+        localStorage.setItem('userRole',userRole)
 
         await getUserData(access);
         return response.data;
@@ -123,6 +119,9 @@ export const signOut = async () =>{
     currentUser = null;
     userId = null;
     localStorage.removeItem('user');
+    localStorage.removeItem('userSlug')
+    localStorage.removeItem('userRole')
+
     return Promise.resolve();
 }
 

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAllCustomers } from "@/services/mockAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,14 +15,21 @@ import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
 import QuickCustomerAdd from "@/components/customers/quick-customer-add";
-
+import {getAllCustomers} from "@/services/customers"
 
 
 interface Customer {
-  id: number;
-  name: string;
+  customer_id: number;
+  customer_type: string;
+  first_name: string;
+  addresses: [];
+  preferred_payment_method: string;
+  last_name: string;
+  date_of_birth: string;
+  gender: string;
   phone: string;
   email?: string;
+  points_balance: number;
   loyaltyPoints: number;
   storeCredit: number;
   totalOrders: number;
@@ -40,10 +46,11 @@ export default function CustomersListPage() {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; customer?: Customer }>({ open: false });
 
   // Fetch customers
-  const { data: customer = [], isLoading } = useQuery({
+  const { data: customers = [], isLoading } = useQuery({
     queryKey: ['/customers'],
+    queryFn: getAllCustomers,
   });
-  const customers = getAllCustomers()
+  
   // Delete customer mutation
   const deleteCustomerMutation = useMutation({
     mutationFn: async (customerId: number) => {
@@ -72,7 +79,7 @@ export default function CustomersListPage() {
 
   // Filter customers based on search and tab
   const filteredCustomers = customers.filter((customer: Customer) => {
-    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = customer.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          customer.phone.includes(searchTerm) ||
                          (customer.email && customer.email.toLowerCase().includes(searchTerm.toLowerCase()));
     
@@ -90,7 +97,7 @@ export default function CustomersListPage() {
 
   const confirmDelete = () => {
     if (deleteDialog.customer) {
-      deleteCustomerMutation.mutate(deleteDialog.customer.id);
+      deleteCustomerMutation.mutate(deleteDialog.customer.customer_id);
     }
   };
 
@@ -218,13 +225,13 @@ export default function CustomersListPage() {
               <div className="space-y-4">
                 {filteredCustomers.map((customer: Customer) => (
                   <div
-                    key={customer.id}
+                    key={customer.customer_id}
                     className="p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h3 className="font-medium text-lg">{customer.name}</h3>
+                          <h3 className="font-medium text-lg">{`${customer.first_name} ${customer.last_name}`}</h3>
                           {getCustomerTypeBadge(customer)}
                         </div>
                         
@@ -243,14 +250,14 @@ export default function CustomersListPage() {
                             <span className="font-medium">نقاط الولاء:</span>
                             <p className="flex items-center gap-1">
                               <Star className="h-3 w-3 text-yellow-500" />
-                              {customer.loyaltyPoints.toLocaleString('ar-SA')}
+                              {customer.points_balance.toLocaleString('ar-SA')}
                             </p>
                           </div>
                           <div>
                             <span className="font-medium">رصيد المتجر:</span>
                             <p className="flex items-center gap-1">
                               <CreditCard className="h-3 w-3 text-green-500" />
-                              {customer.storeCredit.toFixed(2)} ر.س
+                              {customer.points_balance.toFixed(2)} ر.س
                             </p>
                           </div>
                         </div>
@@ -264,7 +271,7 @@ export default function CustomersListPage() {
                           </div>
                           <div>
                             <span className="font-medium text-muted-foreground">إجمالي المشتريات:</span>
-                            <p className="font-medium">{customer.totalSpent.toFixed(2)} ر.س</p>
+                            <p className="font-medium">{customer.points_balance.toFixed(2)} ر.س</p>
                           </div>
                           <div>
                             <span className="font-medium text-muted-foreground">تاريخ التسجيل:</span>

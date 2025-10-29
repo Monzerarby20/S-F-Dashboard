@@ -136,10 +136,7 @@ export default function AddUserPage() {
   const queryClient = useQueryClient();
   const { user, isLoading: authLoading } = useAuth();
 
-  const [selectedPermissions, setSelectedPermissions] = useState<number[]>([]);
-  // const [permissions, setPermissions] = useState<Permission[]>([]);
-  // const [permissionsLoading, setPermissionsLoading] = useState(true);
-  const [rolesLoading, setRolesLoading] = useState(true);
+ 
 
   const [stores, setStores] = useState<StoreType[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);

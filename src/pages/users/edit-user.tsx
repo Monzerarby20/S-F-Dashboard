@@ -18,16 +18,17 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { ArrowRight, Save, UserCheck, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
-
+import { getUserByid } from "@/services/users";
+import {getStoreBranches} from "@/services/branches"
 const editUserSchema = z.object({
-  firstName: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل"),
-  lastName: z.string().min(2, "الاسم الأخير يجب أن يكون حرفين على الأقل"),
+  first_name: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل"),
+  last_name: z.string().min(2, "الاسم الأخير يجب أن يكون حرفين على الأقل"),
   email: z.string().email("البريد الإلكتروني غير صحيح"),
   phone: z.string().min(10, "رقم الهاتف يجب أن يكون 10 أرقام على الأقل"),
-  jobTitle: z.string().min(2, "المسمى الوظيفي مطلوب"),
-  roleId: z.number().min(1, "يجب اختيار دور"),
-  branchId: z.number().optional(),
-  isActive: z.boolean().default(true),
+  job_title_display: z.string().min(2, "المسمى الوظيفي مطلوب"),
+  role_display: z.number().min(1, "يجب اختيار دور"),
+  branch_display: z.number().optional(),
+  is_active_display: z.boolean().default(true),
 });
 
 type EditUserForm = z.infer<typeof editUserSchema>;
@@ -38,53 +39,65 @@ export default function EditUserPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
-
+  
   const userId = params?.id;
-
+  
   const form = useForm<EditUserForm>({
     resolver: zodResolver(editUserSchema),
     defaultValues: {
-      firstName: "",
-      lastName: "",
+      first_name: "",
+      last_name: "",
       email: "",
       phone: "",
-      jobTitle: "",
-      roleId: 0,
-      branchId: undefined,
-      isActive: true,
+      job_title_display: "",
+      role_display: 0,
+      branch_display: undefined,
+      is_active_display: true,
     },
   });
-
+  
+  
   // Fetch user data
   const { data: user, isLoading: userLoading } = useQuery({
-    queryKey: [`/api/users/${userId}`],
+    queryKey: ["user",userId],
     enabled: !!userId,
+    queryFn: ()=> getUserByid(Number(userId)),
   });
-
-  const { data: roles = [], isLoading: rolesLoading } = useQuery({
-    queryKey: ["/api/roles"],
-  });
-
-  const { data: branches = [], isLoading: branchesLoading } = useQuery({
-    queryKey: ["/api/branches"],
-  });
-
+  console.log("Current user data",user)
+  const userSlug = user?.store_slug;
+  console.log("user Slug",userSlug)
+  // Static roles
+  const roles = [
+    { id: 1, name: "owner", displayName: "مدير عام" },
+    { id: 2, name: "manager", displayName: "مدير فرع" },
+    { id: 3, name: "cashier", displayName: "كاشير" },
+    { id: 4, name: "employee", displayName: "موظف" },
+  ];
+  
+  
+  const {data: branches = [], isLoading: branchesLoading} = useQuery({
+    queryKey:['branches',userSlug],
+    enabled: !!user?.store_slug,
+    queryFn:() => getStoreBranches(userSlug),
+  })
+  console.log("current branch ",branches)
+  
   // Update form when user data is loaded
   useEffect(() => {
     if (user) {
       form.reset({
-        firstName: (user as any).firstName || "",
-        lastName: (user as any).lastName || "",
+        first_name: (user as any).first_name || "",
+        last_name: (user as any).last_name || "",
         email: (user as any).email || "",
         phone: (user as any).phone || "",
-        jobTitle: (user as any).jobTitle || "",
-        roleId: (user as any).roleId || 0,
-        branchId: (user as any).branchId || undefined,
-        isActive: (user as any).isActive ?? true,
+        job_title_display: (user as any).job_title_display|| "",
+        role_display: (user as any).role_display || 0,
+        branch_display: (user as any).branch_display || undefined,
+        is_active_display: (user as any).is_active_display ?? true,
       });
     }
   }, [user, form]);
-
+  
   const updateUserMutation = useMutation({
     mutationFn: async (data: EditUserForm) => {
       return await apiRequest("PUT", `/api/users/${userId}`, data);
@@ -106,24 +119,32 @@ export default function EditUserPage() {
       });
     },
   });
-
+  
+  if(branchesLoading|| !branches){
+    console.log("⏳ branches data not ready yet");
+    return <Loading />;
+  }
   const onSubmit = (data: EditUserForm) => {
     updateUserMutation.mutate(data);
   };
-
+  
   if (!match || !userId) {
     setLocation("/users");
     return null;
   }
-
+  
   if (!currentUser) {
     return <Loading />;
   }
-
-  if (userLoading || rolesLoading || branchesLoading) {
+  
+  if (userLoading  || branchesLoading) {
     return <Loading />;
   }
-
+  if ( !user) {
+    console.log("⏳ User data not ready yet");
+    return <Loading />;
+  }
+  
   if (!user) {
     return (
       <PageLayout>
@@ -136,12 +157,12 @@ export default function EditUserPage() {
       </PageLayout>
     );
   }
-
+  
   return (
     <PageLayout maxWidth="2xl">
       <PageHeader
         title="تعديل المستخدم"
-        subtitle={`تحديث بيانات المستخدم ${(user as any).firstName} ${(user as any).lastName}`}
+        subtitle={`تحديث بيانات المستخدم ${(user as any).first_name} ${(user as any).last_name}`}
         onBack={() => setLocation("/users")}
         backLabel="العودة لإدارة المستخدمين"
       />
@@ -160,7 +181,7 @@ export default function EditUserPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
-                        name="firstName"
+                        name="first_name"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>الاسم الأول*</FormLabel>
@@ -174,7 +195,7 @@ export default function EditUserPage() {
                       
                       <FormField
                         control={form.control}
-                        name="lastName"
+                        name="last_name"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>الاسم الأخير*</FormLabel>
@@ -229,7 +250,7 @@ export default function EditUserPage() {
                     {/* Job Information */}
                     <FormField
                       control={form.control}
-                      name="jobTitle"
+                      name="job_title_display"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>المسمى الوظيفي*</FormLabel>
@@ -241,11 +262,12 @@ export default function EditUserPage() {
                       )}
                     />
 
+
                     {/* Role and Branch Selection */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
-                        name="roleId"
+                        name="role_display"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>الدور*</FormLabel>
@@ -260,7 +282,7 @@ export default function EditUserPage() {
                               </FormControl>
                               <SelectContent>
                                 {(roles as any[]).map((role: any) => (
-                                  <SelectItem key={role.id} value={role.id.toString()}>
+                                  <SelectItem key={role.id} value={role.name.toString()}>
                                     {role.displayName}
                                   </SelectItem>
                                 ))}
@@ -273,7 +295,7 @@ export default function EditUserPage() {
                       
                       <FormField
                         control={form.control}
-                        name="branchId"
+                        name="branch_display"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>الفرع</FormLabel>

@@ -62,3 +62,14 @@ export const deleteUser = async (userId: string): Promise<number> => {
     throw error;
   }
 };
+
+export const getUserByid = async (userId:number) =>{
+  try{
+    const response = await api.get(`auth/users/${userId}`);
+    console.log("current user data",response.data)
+    return response.data
+  }catch(error){
+    console.log("faild to get usre",error);
+    throw error;
+  }
+}

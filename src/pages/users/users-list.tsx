@@ -51,7 +51,7 @@ interface User {
   job_title_display?: string;
   date_of_birth?: string;
   avg_experience_rating?: number | null;
-  is_active?: boolean;
+  is_active_display?: boolean;
   date_joined?: string;
   profile_image?: string;
 }
@@ -100,8 +100,8 @@ export default function UsersList() {
 
   // ✅ Toggle active/inactive
   const toggleUserStatusMutation = useMutation({
-    mutationFn: async ({ userId, is_active }: { userId: number; is_active: boolean }) =>
-      await apiRequest("PATCH", `/api/users/${userId}/status/`, { is_active }),
+    mutationFn: async ({ userId, is_active_display }: { userId: number; is_active: boolean }) =>
+      await apiRequest("PATCH", `/api/users/${userId}/status/`, { is_active_display }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast({
@@ -154,7 +154,7 @@ export default function UsersList() {
     if (deleteDialog.userId) deleteUserMutation.mutate(deleteDialog.userId);
   };
   const handleToggleStatus = (userId: number, currentStatus: boolean) =>
-    toggleUserStatusMutation.mutate({ userId, is_active: !currentStatus });
+    toggleUserStatusMutation.mutate({ userId, is_active_display: !currentStatus });
 
   if (!user || isLoading) return <Loading />;
   if (isError)
@@ -248,7 +248,7 @@ export default function UsersList() {
                               <Badge variant={getRoleBadgeVariant(u.role_display)}>
                                 {getRoleLabel(u.role_display)}
                               </Badge>
-                              {!u.is_active && (
+                              {!u.is_active_display && (
                                 <Badge variant="outline" className="text-red-600 border-red-600">
                                   معطل
                                 </Badge>
@@ -284,11 +284,13 @@ export default function UsersList() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleToggleStatus(u.id, u.is_active!)}
+                            onClick={() => handleToggleStatus(u.id, u.is_active_display!)}
                           >
                             <Shield className="h-4 w-4 ml-1" />
-                            {u.is_active ? "تعطيل" : "تفعيل"}
+                            {u.is_active_display? "تعطيل" : "تفعيل"}
                           </Button>
+
+                          
 
                           <Link href={`/users/edit/${u.id}`}>
                             <Button variant="outline" size="sm">

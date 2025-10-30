@@ -98,25 +98,6 @@ export default function UsersList() {
     },
   });
 
-  // ✅ Toggle active/inactive
-  const toggleUserStatusMutation = useMutation({
-    mutationFn: async ({ userId, is_active_display }: { userId: number; is_active: boolean }) =>
-      await apiRequest("PATCH", `/api/users/${userId}/status/`, { is_active_display }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast({
-        title: "تم التحديث",
-        description: "تم تحديث حالة المستخدم بنجاح",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء تحديث حالة المستخدم",
-        variant: "destructive",
-      });
-    },
-  });
 
   // ✅ Filter users by role and search
   const filteredUsers: User[] = users.filter((u: User) => {
@@ -248,11 +229,16 @@ export default function UsersList() {
                               <Badge variant={getRoleBadgeVariant(u.role_display)}>
                                 {getRoleLabel(u.role_display)}
                               </Badge>
-                              {!u.is_active_display && (
+                              {u.is_active_display ? (
+                                <Badge variant="outline" className="text-green-600 border-green-600">
+                                  نشط
+                                </Badge>
+                              ) : (
                                 <Badge variant="outline" className="text-red-600 border-red-600">
                                   معطل
                                 </Badge>
                               )}
+
                             </div>
 
                             <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
@@ -281,14 +267,7 @@ export default function UsersList() {
 
                         {/* Actions */}
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleToggleStatus(u.id, u.is_active_display!)}
-                          >
-                            <Shield className="h-4 w-4 ml-1" />
-                            {u.is_active_display? "تعطيل" : "تفعيل"}
-                          </Button>
+                          
 
                           
 

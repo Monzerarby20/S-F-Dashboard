@@ -1,52 +1,76 @@
 import axios from "axios";
 
-
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const api = axios.create({
-    baseURL: BASE_URL,
+  baseURL: BASE_URL,
 });
-api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
+
+// 🟢 Attach access token to every request
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
     if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
-}, (error) => {
-    return Promise.reject(error);
-});
+  },
+  (error) => Promise.reject(error)
+);
 
+// 🟡 Refresh token logic
 export const refreshToken = async () => {
-    try{
-        const refresh = localStorage.getItem('refresh-token');
-        if(!refresh) throw new Error("No refresh token available");
-        const response = await api.post('auth/token/refresh/', { refresh });
-        const { access } = response.data;
-        localStorage.setItem('token', access);
-        return access;
-    }catch(error){
-        console.error("Error refreshing token:", error);
-        throw error;
+    try {
+      const refresh = localStorage.getItem("refresh-token");
+      if (!refresh) throw new Error("No refresh token available");
+  
+      const response = await api.post("auth/token/refresh/", { refresh });
+      const { access, refresh: newRefresh } = response.data;
+  
+      localStorage.setItem("token", access);
+  
+      // ✅ Save new refresh token if rotation is enabled
+      if (newRefresh) {
+        localStorage.setItem("refresh-token", newRefresh);
+      }
+  
+      return access;
+    } catch (error: any) {
+      console.error("Error refreshing token:", error.response?.data || error);
+      throw error;
     }
-}
+  };
+  
 
-api.interceptors.response.use((response) => response, async (error) => {
+// 🔴 Intercept responses to handle token expiry
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
     const originalRequest = error.config;
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
-        originalRequest._retry = true;
-        try {
-            const newAccessToken = await refreshToken();
-            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-            return api(originalRequest);
-        }catch (err) {  
-            console.error("Refresh token failed:", err);
-            await signOut();
-        }
-    }
-    return Promise.reject(error);
-});
 
+    // If access token expired → try refresh once
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const newAccessToken = await refreshToken();
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return api(originalRequest); // retry request
+      } catch (refreshError: any) {
+        console.error("Refresh token failed:", refreshError);
+
+        // Refresh token also expired → logout and redirect
+        if (refreshError.response?.status === 401) {
+          await signOut();
+          window.location.href = "/login"; // Force redirect to login
+        }
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// 🧍‍♂️ User interface
 export interface user {
   uid: string;
   email: string | null;
@@ -56,72 +80,75 @@ export interface user {
   branchId?: number | null;
 }
 
+// 🧠 Globals
 let currentUser: user | null = null;
 let userId: number | null = null;
-let userSlug: string| null = null;
-let userRole: string| null = null ;
+let userSlug: string | null = null;
+let userRole: string | null = null;
 
+// 🟢 Sign in and store tokens
+export const signInWithEmailAndPassword = async (email: string, password: string) => {
+  try {
+    const response = await api.post(`auth/token/`, { email, password });
+    const { access, refresh } = response.data;
 
-export const signInWithEmailAndPassword = async (email:string,password:string) =>{
-    try{
-        const response = await api.post(`auth/token/`, { email, password });
+    localStorage.setItem("token", access);
+    localStorage.setItem("refresh-token", refresh);
 
-        const {access,refresh} = response.data;
-        localStorage.setItem('token', access);
-        localStorage.setItem('refresh-token', refresh);
-        console.log(response.data);
-        userId = response.data.user_id;
-        userSlug = response.data.store_slug;
-        userRole = response.data.role
-        localStorage.setItem('userId', userId.toString());
-        localStorage.setItem('userSlug', userSlug);
-        localStorage.setItem('userRole',userRole)
+    userId = response.data.user_id;
+    userSlug = response.data.store_slug;
+    userRole = response.data.role;
 
-        await getUserData(access);
-        return response.data;
-    }catch(error){
-        console.error("Error during sign-in:", error);
-        throw new Error("فشل في تسجيل الدخول. يرجى التحقق من بياناتك.");
-    }
-}
+    localStorage.setItem("userId", userId.toString());
+    localStorage.setItem("userSlug", userSlug);
+    localStorage.setItem("userRole", userRole);
 
-export const getUserData = async (token:string) =>{
-    try{
-        const userId = localStorage.getItem('userId');
-        console.log(userId);
+    await getUserData(access);
+    return response.data;
+  } catch (error) {
+    console.error("Error during sign-in:", error);
+    throw new Error("فشل في تسجيل الدخول. يرجى التحقق من بياناتك.");
+  }
+};
 
-        const response = await api.get(`auth/users/${userId}`);
-        console.log("Fetched user data:", response.data);
-        currentUser = response.data;
-        console.log("Current user set to:", currentUser);
-        return response.data;
-    }catch(error){
-        console.error("Error fetching user data:", error);
-        throw new Error("فشل في جلب بيانات المستخدم.");
-    }
-}
+// 🧾 Fetch user data
+export const getUserData = async (token: string) => {
+  try {
+    const userId = localStorage.getItem("userId");
+    const response = await api.get(`auth/users/${userId}`);
+    currentUser = response.data;
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching user data:", error);
+    throw new Error("فشل في جلب بيانات المستخدم.");
+  }
+};
 
-export const fetchAuthUser = async () : Promise<user | null> => {
-    const token = localStorage.getItem('token');
-    if(!token) return null;
-    const res = await getUserData(token);
-    return res;
-}
+// 🟦 Get current authenticated user
+export const fetchAuthUser = async (): Promise<user | null> => {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+  const res = await getUserData(token);
+  return res;
+};
 
-export const signOut = async () =>{
-    localStorage.removeItem('token');
-    localStorage.removeItem('refresh-token');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('refresh');
-    localStorage.removeItem('access');
-    localStorage.removeItem('userSlug')
-    localStorage.removeItem('userRole')
-    currentUser = null;
-    userId = null;
-    localStorage.removeItem('user');
-    localStorage.removeItem('userSlug')
-    localStorage.removeItem('userRole')
+// 🔴 Sign out and clear storage
+export const signOut = async () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("refresh-token");
+  localStorage.removeItem("userId");
+  localStorage.removeItem("refresh");
+  localStorage.removeItem("access");
+  localStorage.removeItem("userSlug");
+  localStorage.removeItem("userRole");
+  localStorage.removeItem("user");
 
-    return Promise.resolve();
-}
+  currentUser = null;
+  userId = null;
+  userSlug = null;
+  userRole = null;
 
+  return Promise.resolve();
+};
+
+export default api;

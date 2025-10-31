@@ -98,6 +98,7 @@ export interface user {
   branchId?: number | null;
 }
 
+// 🧠 Globals
 let currentUser: user | null = null;
 let userId: number | null = null;
 let userSlug: string | null = null;

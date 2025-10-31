@@ -3,6 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { Switch } from "@/components/ui/switch";
+
 import { z } from "zod";
 import {
   UserPlus,
@@ -158,7 +160,7 @@ export default function AddUserPage() {
       role: "",
       store_id: undefined,
       branch_id: undefined,
-      is_active: false,
+      is_active: true,
     },
   });
 
@@ -311,7 +313,7 @@ export default function AddUserPage() {
       role: data.role,
       branch_id: data.branch_id || null,
       job_title: data.job_title,
-      is_active: data.is_active ?? false, // لو مش متحددة هتكون false
+      is_active: !!data.is_active,
     };
 
     console.log("Submitting user:", payload);
@@ -613,72 +615,30 @@ export default function AddUserPage() {
 
               </div>
 
-              {/* Permissions */}
-              {/* <div className="pt-6 border-t">
-                <div className="flex items-center gap-2 mb-4">
-                  <Shield className="h-5 w-5 text-purple-600" />
-                  <h3 className="text-lg font-semibold">إدارة الصلاحيات</h3>
-                  <Badge variant="secondary">
-                    {selectedPermissions.length} مُختارة
-                  </Badge>
-                </div>
+              {/* Active Status Toggle */}
+              <FormField
+                control={form.control}
+                name="is_active"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between border p-3 rounded-lg">
+                    <div>
+                      <FormLabel className="text-sm font-medium">حالة الحساب</FormLabel>
+                      <FormMessage />
+                    </div>
+                    <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={(checked) => field.onChange(checked)}
+                    />
 
-                {Object.entries(permissionsByModule).map(([module, modulePermissions]) => {
-                  const Icon = moduleIcons[module as keyof typeof moduleIcons] || Settings;
-                  const color = moduleColors[module as keyof typeof moduleColors];
-                  return (
-                    <Card key={module} className="mb-4 border border-gray-200 dark:border-gray-700">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${color}`}>
-                            <Icon className="h-5 w-5" />
-                          </div>
-                          <div className="flex-1">
-                            <CardTitle className="text-base">
-                              {modulePermissions[0].module}
-                            </CardTitle>
-                          </div>
-                          <Badge variant="outline" className={color}>
-                            {
-                              modulePermissions.filter((p: any) =>
-                                selectedPermissions.includes(p.id)
-                              ).length
-                            }
-                            /{modulePermissions.length}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {modulePermissions.map((permission: Permission) => (
-                            <div
-                              key={permission.id}
-                              className="flex items-start p-3 rounded-lg border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                            >
-                              <Checkbox
-                                checked={selectedPermissions.includes(permission.id)}
-                                onCheckedChange={(checked) =>
-                                  handlePermissionToggle(permission.id, checked as boolean)
-                                }
-                              />
-                              <div className="ms-2">
-                                <p className="text-sm font-medium">
-                                  {permission.displayName}
-                                </p>
-                                {permission.description && (
-                                  <p className="text-xs text-muted-foreground">
-                                    {permission.description}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div> */}
+                    </FormControl>
+                    <span className="text-sm ms-2">
+                      {field.value ? "نشط ✅" : "غير نشط ❌"}
+                    </span>
+                  </FormItem>
+                )}
+              />
+
 
               {/* Submit */}
               <div className="flex gap-3 pt-6 border-t">

@@ -38,14 +38,35 @@ export interface User {
     average: number;
     count: number;
   } | null;
+  is_active_display?: boolean;
 }
 
 // ✅ Fetch all users
 export const getAllUsers = async (): Promise<User[]> => {
   try {
-    const response = await api.get("auth/users/");
-    console.log("✅ Fetched users:", response.data.results);
-    return response.data.results;
+    let allUsers: User[] = [];
+    let nextUrl: string | null = "auth/users/";
+
+    while (nextUrl) {
+      const response = await api.get(nextUrl);
+      const data = response.data;
+
+      // If pagination exists (results key)
+      if (data.results) {
+        allUsers = [...allUsers, ...data.results];
+        // Extract relative next URL (e.g. "/api/auth/users/?page=2")
+        nextUrl = data.next
+          ? data.next.replace(import.meta.env.VITE_API_BASE_URL, "")
+          : null;
+      } else {
+        // If pagination is disabled, just return full list
+        allUsers = data;
+        nextUrl = null;
+      }
+    }
+
+    console.log(`✅ Fetched ${allUsers.length} users in total`);
+    return allUsers;
   } catch (error: any) {
     console.error("❌ Error fetching users:", error.response?.data || error.message);
     throw error;

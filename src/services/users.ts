@@ -40,26 +40,32 @@ export interface User {
   } | null;
   is_active_display?: boolean;
 }
-
+ let BASE_URL = import.meta.env.VITE_API_BASE_URL;
+ console.log(BASE_URL) 
 // ✅ Fetch all users
+
 export const getAllUsers = async (): Promise<User[]> => {
   try {
     let allUsers: User[] = [];
-    let nextUrl: string | null = "auth/users/";
+    let nextUrl: string | null = `${BASE_URL}auth/users/`;
 
     while (nextUrl) {
-      const response = await api.get(nextUrl);
+      // 🔒 تأكد إن اللينك HTTPS مش HTTP
+      if (nextUrl.startsWith("http://")) {
+        nextUrl = nextUrl.replace("http://", "https://");
+      }
+
+      // 🧠 لو مش URL كامل، ضيف الـ BASE_URL
+      const response: any = await api.get(
+        nextUrl.startsWith("http") ? nextUrl : `${BASE_URL}${nextUrl}`
+      );
+
       const data = response.data;
 
-      // If pagination exists (results key)
       if (data.results) {
         allUsers = [...allUsers, ...data.results];
-        // Extract relative next URL (e.g. "/api/auth/users/?page=2")
-        nextUrl = data.next
-          ? data.next.replace(import.meta.env.VITE_API_BASE_URL, "")
-          : null;
+        nextUrl = data.next || null;
       } else {
-        // If pagination is disabled, just return full list
         allUsers = data;
         nextUrl = null;
       }

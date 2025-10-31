@@ -31,7 +31,7 @@ import {
 import { ArrowRight, Save, UserCheck, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
-import { getUserByid } from "@/services/users";
+import { changePassword, getUserByid, updateUserData } from "@/services/users";
 import { getStoreBranches } from "@/services/branches";
 import { Badge } from "@/components/ui/badge";
 
@@ -46,7 +46,7 @@ const editUserSchema = z.object({
   is_active_display: z.boolean().default(true),
   store: z.number().optional(),
   gender: z.enum(["male", "female"], { message: "يجب اختيار الجنس" }),
-  birthdate: z.string().optional(), // format: "YYYY-MM-DD"
+  date_of_birth: z.string().optional(), // format: "YYYY-MM-DD"
 });
 
 type EditUserForm = z.infer<typeof editUserSchema>;
@@ -59,6 +59,7 @@ export default function EditUserPage() {
   const { user: currentUser } = useAuth();
 
   const userId = params?.id;
+  console.log(userId)
 
   const form = useForm<EditUserForm>({
     resolver: zodResolver(editUserSchema),
@@ -73,7 +74,7 @@ export default function EditUserPage() {
       is_active_display: true,
       store: undefined,
       gender: "male",
-      birthdate: "",
+      date_of_birth: "",
     },
   });
 
@@ -123,15 +124,16 @@ export default function EditUserPage() {
         is_active_display: user.is_active_display ?? true,
         store: user.store || undefined,
         gender: user.gender || "male",
-        birthdate: user.birthdate || "",
+        date_of_birth: user.date_of_birth || "",
       });
     }
   }, [user, form]);
 
   // ✅ Mutation to update user
   const updateUserMutation = useMutation({
-    mutationFn: async (data: EditUserForm) => {
-      return await apiRequest("PATCH", `auth/users/${userId}/`, data);
+    mutationFn: async ({ userId, data }: { userId: number; data: EditUserForm }) => {
+      console.log(data)
+      return await updateUserData(Number(userId),data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user", userId] });
@@ -168,14 +170,10 @@ export default function EditUserPage() {
         });
         return;
       }
-
+  
       try {
         setIsLoading(true);
-        await apiRequest("POST", "auth/reset/password/", {
-          old_password: oldPassword,
-          new_password: newPassword,
-          confirm_new_password: confirmNewPassword,
-        });
+        await changePassword(oldPassword, newPassword, confirmNewPassword); // ✅ استخدمنا الفنكشن الجديدة
         toast({
           title: "تم التحديث",
           description: "تم تغيير كلمة المرور بنجاح",
@@ -193,6 +191,7 @@ export default function EditUserPage() {
         setIsLoading(false);
       }
     };
+  
 
     return (
       <div className="space-y-4">
@@ -240,7 +239,7 @@ export default function EditUserPage() {
 
   // ✅ Submit handler
   const onSubmit = (data: EditUserForm) => {
-    updateUserMutation.mutate(data);
+    updateUserMutation.mutate({ userId: Number(userId), data });
   };
 
   return (
@@ -453,10 +452,10 @@ export default function EditUserPage() {
                 )}
               />
 
-              {/* --- Birthdate --- */}
+              {/* --- date_of_birth --- */}
               <FormField
                 control={form.control}
-                name="birthdate"
+                name="date_of_birth"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>تاريخ الميلاد</FormLabel>

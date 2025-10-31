@@ -23,13 +23,20 @@ import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-import { getAllPromotions } from "../../services/promotion";
+import { createPromotion, getAllPromotions } from "../../services/promotion";
+
 const promotionSchema = z.object({
-  title: z.string().min(1, "العنوان مطلوب"),
+  name: z.string().min(1, "اسم العرض مطلوب"),
+  slug: z.string().min(1, "الـ slug مطلوب"),
   description: z.string().min(1, "الوصف مطلوب"),
-  startDate: z.date(),
-  endDate: z.date(),
-  isActive: z.boolean().default(true),
+  promotion_type: z.string().min(1, "نوع العرض مطلوب"),
+  start_date: z.date(),
+  end_date: z.date(),
+  is_active: z.boolean().default(true),
+  is_featured: z.boolean().default(false),
+  target_audience: z.string().default("all"),
+  banner_image: z.string().url("رابط الصورة غير صحيح").optional(),
+  terms_conditions: z.string().optional(),
 });
 
 type PromotionFormData = z.infer<typeof promotionSchema>;
@@ -44,47 +51,62 @@ export default function PromotionsList() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
 
-  const { data: promotions = [], isLoading } = useQuery({
-    queryKey: ['/promotions'],
-  });
-
-  // const {data : promotions = [] , isLoading} = useQuery({
+  // const { data: promotions = [], isLoading } = useQuery({
   //   queryKey: ['/promotions'],
-  //   queryFn: getAllPromotions,
   // });
 
+  const {data : promotions = [] , isLoading} = useQuery({
+    queryKey: ['/promotions'],
+    queryFn: getAllPromotions,
+  });
+
   console.log("Fetched promotions:", promotions);
+  console.log("Fetched promotions:", typeof(promotions));
+
 
 
   const promotionForm = useForm<PromotionFormData>({
     resolver: zodResolver(promotionSchema),
     defaultValues: {
-      title: "",
+      name: "",
+      slug: "",
       description: "",
-      startDate: new Date(),
-      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      isActive: true,
+      promotion_type: "",
+      start_date: new Date(),
+      end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      is_active: true,
+      is_featured: false,
+      target_audience: "all",
+      banner_image: "",
+      terms_conditions: "",
     },
   });
 
   const createPromotionMutation = useMutation({
     mutationFn: async (data: PromotionFormData) => {
-      const formData = new FormData();
-      formData.append('title', data.title);
-      formData.append('description', data.description);
-      formData.append('startDate', data.startDate.toISOString());
-      formData.append('endDate', data.endDate.toISOString());
-      formData.append('isActive', data.isActive.toString());
+      const payload = {
+        name: data.name,
+        slug: data.slug,
+        description: data.description,
+        promotion_type: data.promotion_type,
+        start_date: data.start_date.toISOString().split("T")[0],
+        end_date: data.end_date.toISOString().split("T")[0],
+        is_active: data.is_active,
+        is_featured: data.is_featured,
+        target_audience: data.target_audience,
+        banner_image: data.banner_image || "",
+        terms_conditions: data.terms_conditions || "",
+      };
       
-      if (selectedImage) {
-        formData.append('image', selectedImage);
-      }
+      // if (selectedImage) {
+      //   payload.append('image', selectedImage);
+      // }
 
-      const response = await fetch('/promotions', {
-        method: 'POST',
-        body: formData,
-      });
-      
+      // const response = await fetch('/promotions', {
+      //   method: 'POST',
+      //   body: formData,
+      // });
+      const response = await createPromotion(payload);
       if (!response.ok) {
         const error = await response.text();
         throw new Error(error || 'فشل في إنشاء العرض');
@@ -318,7 +340,7 @@ export default function PromotionsList() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={promotionForm.control}
-                      name="title"
+                      name="name"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>عنوان العرض</FormLabel>
@@ -332,7 +354,7 @@ export default function PromotionsList() {
 
                     <FormField
                       control={promotionForm.control}
-                      name="isActive"
+                      name="is_active"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>حالة العرض</FormLabel>
@@ -377,7 +399,7 @@ export default function PromotionsList() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={promotionForm.control}
-                      name="startDate"
+                      name="start_date"
                       render={({ field }) => (
                         <FormItem className="flex flex-col">
                           <FormLabel>تاريخ البداية</FormLabel>
@@ -414,7 +436,7 @@ export default function PromotionsList() {
 
                     <FormField
                       control={promotionForm.control}
-                      name="endDate"
+                      name="end_date"
                       render={({ field }) => (
                         <FormItem className="flex flex-col">
                           <FormLabel>تاريخ الانتهاء</FormLabel>
@@ -513,13 +535,15 @@ export default function PromotionsList() {
           icon={Megaphone}
           title="لا توجد عروض"
           description="لم يتم إنشاء أي عروض ترويجية بعد"
-          action={{
-            label: "إضافة أول عرض",
-            onClick: () => {
+          action={
+            <Button onClick={() => {
               resetForm();
               setIsDialogOpen(true);
-            }
-          }}
+            }}>
+              إضافة أول عرض
+            </Button>
+          }
+          
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

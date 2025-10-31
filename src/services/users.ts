@@ -1,25 +1,26 @@
-import axios from "axios";
+// import axios from "axios";
 
-// Base URL from environment variable (e.g. http://127.0.0.1:8000/api/)
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// // Base URL from environment variable (e.g. http://127.0.0.1:8000/api/)
+// const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// Create a preconfigured axios instance
-const api = axios.create({
-  baseURL: BASE_URL,
-  withCredentials: false,
-});
+// // Create a preconfigured axios instance
+// const api = axios.create({
+//   baseURL: BASE_URL,
+//   withCredentials: false,
+// });
 
-// 🔐 Automatically attach token to every request
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+// // 🔐 Automatically attach token to every request
+// api.interceptors.request.use(
+//   (config) => {
+//     const token = localStorage.getItem("token");
+//     if (token) {
+//       config.headers.Authorization = `Bearer ${token}`;
+//     }
+//     return config;
+//   },
+//   (error) => Promise.reject(error)
+// );
+import api from "./auth";
 
 // ✅ Define TypeScript types
 export interface User {

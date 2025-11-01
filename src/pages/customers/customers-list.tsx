@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Tabs,  TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Search,  Edit, Trash2, Users, Star, CreditCard } from "lucide-react";
+import { Search, Edit, Trash2, Users, Star, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import PageLayout from "@/components/layout/page-layout";
@@ -15,7 +15,7 @@ import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
 import QuickCustomerAdd from "@/components/customers/quick-customer-add";
-import {getAllCustomers} from "@/services/customers"
+import { deleteCustomer, getAllCustomers, updateCustomer } from "@/services/customers"
 
 
 interface Customer {
@@ -32,8 +32,8 @@ interface Customer {
   points_balance: number;
   loyaltyPoints: number;
   storeCredit: number;
-  totalOrders: number;
-  totalSpent: number;
+  total_orders: number;
+  total_spent: number;
   isGuest: boolean;
   createdAt: string;
 }
@@ -44,24 +44,24 @@ export default function CustomersListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTab, setSelectedTab] = useState("all");
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; customer?: Customer }>({ open: false });
+  const [editDialog, setEditDialog] = useState<{ open: boolean; customer?: Customer }>({ open: false });
+  const [editData, setEditData] = useState({ customer_type: "", preferred_payment_method: "" });
 
   // Fetch customers
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ['/customers'],
     queryFn: getAllCustomers,
   });
-  
+
   // Delete customer mutation
   const deleteCustomerMutation = useMutation({
     mutationFn: async (customerId: number) => {
-      const response = await apiRequest('DELETE', `/api/customers/${customerId}`);
-      if (!response.ok) {
-        throw new Error('فشل في حذف العميل');
-      }
-      return response.json();
+      const response = await deleteCustomer(customerId);
+      console.log("delete customer data", response.data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/customers'] });
+
       toast({
         title: "تم الحذف",
         description: "تم حذف العميل بنجاح",
@@ -76,18 +76,50 @@ export default function CustomersListPage() {
       });
     },
   });
+  //Update customer mutation
+  const updateCustomerMutation = useMutation({
+    mutationFn: async () => {
+      if (!editDialog.customer) return;
+      console.log("edit data", editData);
+      return updateCustomer(editDialog.customer.customer_id, editData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/customers'] });
+      toast({
+        title: "تم التحديث",
+        description: "تم تعديل بيانات العميل بنجاح",
+      });
+      setEditDialog({ open: false });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "خطأ في التحديث",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  //Handle edit customer
+  const handleEditCustomer = (customer: Customer) => {
+    setEditDialog({ open: true, customer });
+    setEditData({
+      customer_type: customer.customer_type || "",
+      preferred_payment_method: customer.preferred_payment_method || "",
+    });
+  };
+
 
   // Filter customers based on search and tab
   const filteredCustomers = customers.filter((customer: Customer) => {
     const matchesSearch = customer.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         customer.phone.includes(searchTerm) ||
-                         (customer.email && customer.email.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchesTab = selectedTab === "all" || 
-                      (selectedTab === "registered" && !customer.isGuest) ||
-                      (selectedTab === "guests" && customer.isGuest) ||
-                      (selectedTab === "vip" && customer.loyaltyPoints >= 1000);
-    
+      customer.phone.includes(searchTerm) ||
+      (customer.email && customer.email.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesTab = selectedTab === "all" ||
+      (selectedTab === "registered" && !customer.isGuest) ||
+      (selectedTab === "guests" && customer.isGuest) ||
+      (selectedTab === "vip" && customer.loyaltyPoints >= 1000);
+
     return matchesSearch && matchesTab;
   });
 
@@ -110,6 +142,17 @@ export default function CustomersListPage() {
     }
     return <Badge variant="outline">مسجل</Badge>;
   };
+  const getCustomerType = (customer: Customer) => {
+    if (customer.customer_type == "regular") {
+      return <Badge variant="secondary">عادي</Badge>;
+    }
+    if (customer.customer_type == "premium") {
+      return <Badge variant="default" className="bg-yellow-600">premium</Badge>;
+    }
+    return <Badge variant="outline">مسجل</Badge>;
+  };
+
+
 
   if (isLoading) {
     return <Loading />;
@@ -232,9 +275,9 @@ export default function CustomersListPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           <h3 className="font-medium text-lg">{`${customer.first_name} ${customer.last_name}`}</h3>
-                          {getCustomerTypeBadge(customer)}
+                          {getCustomerTypeBadge(customer)}{getCustomerType(customer)}
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-muted-foreground">
                           <div>
                             <span className="font-medium">الهاتف:</span>
@@ -267,28 +310,35 @@ export default function CustomersListPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                           <div>
                             <span className="font-medium text-muted-foreground">إجمالي الطلبات:</span>
-                            <p className="font-medium">{customer.totalOrders}</p>
+                            <p className="font-medium">{customer.total_orders}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium"> الدفع المفضل:</span>
+                            <p className="flex items-center gap-1">
+                              <CreditCard className="h-3 w-3 text-green-500" />
+                              {customer.preferred_payment_method}
+                            </p>
                           </div>
                           <div>
                             <span className="font-medium text-muted-foreground">إجمالي المشتريات:</span>
-                            <p className="font-medium">{customer.points_balance.toFixed(2)} ر.س</p>
+                            <p className="font-medium">{customer.total_spent.toFixed(2)} ر.س</p>
                           </div>
                           <div>
-                            <span className="font-medium text-muted-foreground">تاريخ التسجيل:</span>
-                            <p className="font-medium">{new Date(customer.createdAt).toLocaleDateString('ar-SA')}</p>
+                            <span className="font-medium text-muted-foreground">تاريخ الميلاد:</span>
+                            <p className="font-medium">{new Date(customer.date_of_birth).toLocaleDateString('ar-SA')}</p>
                           </div>
                         </div>
                       </div>
 
                       <div className="flex gap-2 ml-4">
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => handleEditCustomer(customer)}>
                           <Edit className="h-4 w-4 mr-2" />
                           تعديل
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleDeleteCustomer(customer)}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => [handleDeleteCustomer](customer)}
                           className="text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
@@ -316,7 +366,7 @@ export default function CustomersListPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={confirmDelete}
               disabled={deleteCustomerMutation.isPending}
               className="bg-red-600 hover:bg-red-700"
@@ -326,6 +376,60 @@ export default function CustomersListPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تعديل بيانات العميل</AlertDialogTitle>
+            <AlertDialogDescription>
+              يمكنك تعديل نوع العميل وطريقة الدفع المفضلة.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="block text-sm font-medium mb-1">نوع العميل</label>
+              <select
+                value={editData.customer_type}
+                onChange={(e) => setEditData({ ...editData, customer_type: e.target.value })}
+                className="w-full border rounded p-2 bg-white text-black dark:bg-gray-800 dark:text-white"
+
+              >
+                <option value="">اختر النوع</option>
+                <option value="regular">عادي</option>
+                <option value="premium">Premium</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">طريقة الدفع المفضلة</label>
+              <select
+                value={editData.preferred_payment_method}
+                onChange={(e) => setEditData({ ...editData, preferred_payment_method: e.target.value })}
+                className="w-full border rounded p-2 bg-white text-black dark:bg-gray-800 dark:text-white"
+
+              >
+                <option value="">اختر الطريقة</option>
+                <option value="cash">نقدي</option>
+                <option value="visa">بطاقة</option>
+              </select>
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <Button
+        onClick={() => {
+          console.log("Button clicked"); // لازم تشوفها في الكونسول
+          updateCustomerMutation.mutate();
+        }}
+        disabled={updateCustomerMutation.isPending}
+      >
+        {updateCustomerMutation.isPending ? "جاري التعديل..." : "حفظ التغييرات"}
+      </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </PageLayout>
   );
 }

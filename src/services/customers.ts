@@ -27,3 +27,26 @@ export const getAllCustomers = async() =>{
         throw error;
     }
 }
+
+export const deleteCustomer = async(customerId: Number) =>{
+    try{
+        const response = await api.delete(`auth/customers/${customerId}/`);
+        console.log("delete customer data",response.data)
+        return response.data
+    }catch(error){
+        console.log("faild to delete customer data", error);
+        throw error;    
+    }
+}
+
+// update customer_type and preferred_payment_method
+export const updateCustomer = async(customerId: Number, data: object) =>{
+    try{
+        const response = await api.put(`auth/customers/${customerId}/`, data);
+        console.log("update customer data",response.data)
+        return response.data
+    }catch(error){
+        console.log("faild to update customer data", error);
+        throw error;    
+    }
+} 

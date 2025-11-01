@@ -207,9 +207,10 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-4">
                   <Badge variant="secondary" className="flex items-center gap-1">
                     <Shield className="h-3 w-3" />
-                    {profile?.role === 'store_owner' ? 'مالك المتجر' : 
-                     profile?.role === 'branch_manager' ? 'مدير الفرع' : 
-                     profile?.role === 'cashier' ? 'أمين الصندوق' : 'موظف'}
+                    {profile?.role_display === 'owner' ? 'مالك المتجر' : 
+                    profile?.role_display=== 'admin' ? 'مدير':
+                     profile?.role_display === 'manager' ? 'مدير الفرع' : 
+                     profile?.role_display === 'cashier' ? 'أمين الصندوق' : 'موظف'}
                   </Badge>
                   
                   {profile?.department && (

@@ -1,8 +1,20 @@
-node_modules
-Old_client
-dist
-.DS_Store
-server/public
-vite.config.ts.*
-*.tar.gz
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+Old_client/
+server/public/
+
+# Environment files
 .env
+
+# System files
+.DS_Store
+
+# Archives
+*.tar.gz
+
+# Vite configs (temporary or custom ones)
+vite.config.ts.*
+

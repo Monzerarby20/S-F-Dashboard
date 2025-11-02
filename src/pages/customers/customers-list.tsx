@@ -9,13 +9,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Search, Edit, Trash2, Users, Star, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-import QuickCustomerAdd from "@/components/customers/quick-customer-add";
-import { deleteCustomer, getAllCustomers, updateCustomer } from "@/services/customers"
+import { createCustomer, deleteCustomer, getAllCustomers, updateCustomer } from "@/services/customers"
+
 
 
 interface Customer {
@@ -46,6 +45,12 @@ export default function CustomersListPage() {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; customer?: Customer }>({ open: false });
   const [editDialog, setEditDialog] = useState<{ open: boolean; customer?: Customer }>({ open: false });
   const [editData, setEditData] = useState({ customer_type: "", preferred_payment_method: "" });
+  // state for adding customer
+  const [addDialog, setAddDialog] = useState({ open: false });
+  const [newCustomerData, setNewCustomerData] = useState({
+    customer_type: "",
+    preferred_payment_method: "",
+  });
 
   // Fetch customers
   const { data: customers = [], isLoading } = useQuery({
@@ -76,6 +81,31 @@ export default function CustomersListPage() {
       });
     },
   });
+  // Create customer mutation
+  const createCustomerMutation = useMutation({
+    mutationFn: async (data: { customer_type: string; preferred_payment_method: string }) => {
+      return createCustomer(data);
+    },
+    
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/customers'] });
+      toast({
+        title: "تمت الإضافة",
+        description: "تم إضافة العميل بنجاح",
+      });
+      setAddDialog({ open: false });
+      setNewCustomerData({ customer_type: "", preferred_payment_method: "" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "خطأ في الإضافة",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+
   //Update customer mutation
   const updateCustomerMutation = useMutation({
     mutationFn: async () => {
@@ -165,9 +195,78 @@ export default function CustomersListPage() {
         description="عرض وإدارة قاعدة بيانات العملاء ونقاط الولاء"
         icon={<Users className="h-8 w-8" />}
         actions={
-          <QuickCustomerAdd onCustomerAdded={() => queryClient.invalidateQueries({ queryKey: ['/customers'] })} />
+          <Button onClick={() => setAddDialog({ open: true })}>
+            إضافة عميل جديد
+          </Button>
         }
       />
+      {/* {add customer dialog} */}
+      <AlertDialog open={addDialog.open} onOpenChange={(open) => setAddDialog({ open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>إضافة عميل جديد</AlertDialogTitle>
+            <AlertDialogDescription>
+              اختر نوع العميل وطريقة الدفع المفضلة، ثم اضغط على "إضافة".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="block text-sm font-medium mb-1">نوع العميل</label>
+              <select
+                value={newCustomerData.customer_type}
+                onChange={(e) =>
+                  setNewCustomerData({ ...newCustomerData, customer_type: e.target.value })
+                }
+                className="w-full border rounded p-2 bg-white text-black dark:bg-gray-800 dark:text-white"
+              >
+                <option value="">اختر النوع</option>
+                <option value="regular">عادي</option>
+                <option value="premium">Premium</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">طريقة الدفع المفضلة</label>
+              <select
+                value={newCustomerData.preferred_payment_method}
+                onChange={(e) =>
+                  setNewCustomerData({
+                    ...newCustomerData,
+                    preferred_payment_method: e.target.value,
+                  })
+                }
+                className="w-full border rounded p-2 bg-white text-black dark:bg-gray-800 dark:text-white"
+              >
+                <option value="">اختر الطريقة</option>
+                <option value="cash">نقدي</option>
+                <option value="visa">بطاقة</option>
+              </select>
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <Button
+              onClick={() => {
+                if (!newCustomerData.customer_type || !newCustomerData.preferred_payment_method) {
+                  toast({
+                    title: "تحذير",
+                    description: "من فضلك اختر نوع العميل وطريقة الدفع.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                createCustomerMutation.mutate(newCustomerData);
+              }}
+              disabled={createCustomerMutation.isPending}
+            >
+              {createCustomerMutation.isPending ? "جاري الإضافة..." : "إضافة"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       <div className="space-y-6">
         {/* Search and Filters */}
@@ -338,7 +437,7 @@ export default function CustomersListPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => [handleDeleteCustomer](customer)}
+                          onClick={() => handleDeleteCustomer(customer)}
                           className="text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
@@ -360,7 +459,7 @@ export default function CustomersListPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من حذف العميل "{deleteDialog.customer?.name}"؟
+              هل أنت متأكد من حذف العميل "{deleteDialog.customer?.first_name} {deleteDialog.customer?.last_name}"؟
               سيتم حذف جميع البيانات المرتبطة بهذا العميل.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -418,14 +517,14 @@ export default function CustomersListPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
             <Button
-        onClick={() => {
-          console.log("Button clicked"); // لازم تشوفها في الكونسول
-          updateCustomerMutation.mutate();
-        }}
-        disabled={updateCustomerMutation.isPending}
-      >
-        {updateCustomerMutation.isPending ? "جاري التعديل..." : "حفظ التغييرات"}
-      </Button>
+              onClick={() => {
+                console.log("Button clicked"); // لازم تشوفها في الكونسول
+                updateCustomerMutation.mutate();
+              }}
+              disabled={updateCustomerMutation.isPending}
+            >
+              {updateCustomerMutation.isPending ? "جاري التعديل..." : "حفظ التغييرات"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

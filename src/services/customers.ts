@@ -50,3 +50,15 @@ export const updateCustomer = async(customerId: Number, data: object) =>{
         throw error;    
     }
 } 
+
+// create customer
+export const createCustomer = async(data: object) =>{
+    try{
+        const response = await api.post(`auth/customers/`, data);
+        console.log("create customer data",response.data)
+        return response.data
+    }catch(error){
+        console.log("faild to create customer data", error);
+        throw error;    
+    }
+}

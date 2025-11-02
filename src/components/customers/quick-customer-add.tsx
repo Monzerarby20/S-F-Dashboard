@@ -33,47 +33,38 @@ interface QuickCustomerAddProps {
 }
 
 export default function QuickCustomerAdd({ onCustomerSelected, trigger }: QuickCustomerAddProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const [isOpen, setIsOpen] = useState(false);
   const [searchPhone, setSearchPhone] = useState("");
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const [searchResult, setSearchResult] = useState<Customer | null>(null);
   const [searchNotFound, setSearchNotFound] = useState(false);
-  
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  // بحث عن عميل برقم الهاتف
+  // 🔍 البحث عن عميل
   const searchMutation = useMutation({
     mutationFn: async (phone: string) => {
-      const response = await fetch(`/api/customers/search/phone/${phone}`);
-      if (response.status === 404) {
-        throw new Error("NOT_FOUND");
-      }
-      if (!response.ok) {
-        throw new Error("SEARCH_ERROR");
-      }
-      return response.json();
+      const res = await apiRequest(`/api/customers/search/phone/${phone}`, "GET");
+      return res;
     },
-    onSuccess: (customer) => {
-      setSearchResult(customer);
-      setSearchNotFound(false);
-    },
-    onError: (error: Error) => {
-      if (error.message === "NOT_FOUND") {
+    onSuccess: (data: Customer) => {
+      if (data) {
+        setSearchResult(data);
+        setSearchNotFound(false);
+      } else {
         setSearchResult(null);
         setSearchNotFound(true);
-      } else {
-        toast({
-          title: "خطأ في البحث",
-          description: "فشل في البحث عن العميل",
-          variant: "destructive",
-        });
       }
+    },
+    onError: () => {
+      setSearchResult(null);
+      setSearchNotFound(true);
     },
   });
 
-  // إنشاء عميل ضيف
+  // 🧾 إنشاء عميل ضيف
   const createGuestMutation = useMutation({
     mutationFn: async (data: { name?: string; phone?: string }) => {
       return await apiRequest("/api/customers/guest", "POST", data);
@@ -126,9 +117,7 @@ export default function QuickCustomerAdd({ onCustomerSelected, trigger }: QuickC
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
-    if (!open) {
-      resetForm();
-    }
+    if (!open) resetForm();
   };
 
   return (
@@ -163,7 +152,7 @@ export default function QuickCustomerAdd({ onCustomerSelected, trigger }: QuickC
                 onChange={(e) => setSearchPhone(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
-              <Button 
+              <Button
                 onClick={handleSearch}
                 disabled={searchMutation.isPending}
                 size="sm"
@@ -208,7 +197,7 @@ export default function QuickCustomerAdd({ onCustomerSelected, trigger }: QuickC
               <User className="h-4 w-4" />
               <Label>إنشاء حساب زائر جديد</Label>
             </div>
-            
+
             <div className="space-y-3">
               <div>
                 <Label htmlFor="guestName">اسم العميل (اختياري)</Label>

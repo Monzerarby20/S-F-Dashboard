@@ -86,19 +86,14 @@ export default function CashierPOS() {
   // Fetch products by barcode
   
   const findProductMutation = useMutation({
-    mutationFn: async (input) => {
-      console.log("➡️ Mutation started with:", input);
-      const payload: any = {
-        barcode: input,
-        latitude: storeLatitude,
-        longitude: storeLongitude,
-      };
+    mutationFn: async (payload) => {
+      console.log("➡️ Mutation started with:", payload);
       const response = await getProductByBartcode(payload);
       console.log("✅ Product fetched:", response);
       return response;
     },
     onSuccess: (data) => {
-      const product = data.product
+      const product = data.product;
       console.log("🎉 onSuccess fired:", product);
       addToCart(product);
       setBarcodeInput("");
@@ -124,34 +119,41 @@ export default function CashierPOS() {
   // Process order mutation
   const processOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
-      const response = await apiRequest('POST', '/orders', orderData);
+      const response = await apiRequest(
+        'POST',
+        '/orders/order/checkout/',
+        orderData
+      );
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "تم إتمام البيع",
         description: "تم حفظ الطلب بنجاح",
       });
+      console.log("✅ Order created:", data);
       clearCart();
       setSelectedCustomer(null);
       queryClient.invalidateQueries({ queryKey: ['/dashboard'] });
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "خطأ في الطلب",
         description: "فشل في حفظ الطلب",
         variant: "destructive",
       });
+      console.error("❌ Error:", error);
     },
   });
+  
 
   // Handle barcode scanning
   const handleBarcodeSubmit = () => {
     if (!barcodeInput.trim()) return;
-
-    // const input = barcodeInput.trim();
-    // const input = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+  
     const input = barcodeInput.trim();
+  
+    // Handle invoice (PDF) input
     if (input.endsWith(".pdf")) {
       setInvoiceUrl(input);
       toast({
@@ -160,46 +162,134 @@ export default function CashierPOS() {
       });
       return;
     }
-    // Check if it's a QR code (starts with QR-) for customer orders
-    if (input.startsWith('QR-') && activeTab === "qr-verification") {
+  
+    // Handle QR code scanning (for customer orders)
+    if (input.startsWith("QR-") && activeTab === "qr-verification") {
       setQrInput(input);
       fetchQROrderMutation.mutate(input);
     } else {
       // Regular barcode scanning
       if (activeTab === "pos") {
         setIsScanning(true);
-        findProductMutation.mutate(input);
-      } else if (activeTab === "qr-verification" && currentOrder) {
+  
+        // ✅ Correct payload for your backend
+        const payload = {
+          barcode: input,
+          latitude: storeLatitude ?? 29.9601,
+          longitude: storeLongitude ?? 31.2594,
+        };
+  
+        console.log("📦 Payload sent:", payload);
+  
+        // ✅ Fixed mutation call to send payload properly
+        findProductMutation.mutate(payload);
+      } 
+      // Handle QR verification scanning
+      else if (activeTab === "qr-verification" && currentOrder) {
         setIsQRScanning(true);
+  
+        // ✅ Make sure we send full object for QR order scan
         scanProductMutation.mutate({
           qrOrderId: currentOrder.id,
-          barcode: input
+          barcode: input,
         });
       }
     }
   };
+  const handlePayment = async () => {
+    try {
+      if (!cart || cart.length === 0) {
+        alert("السلة فارغة");
+        return;
+      }
+  
+      // 1️⃣ Checkout order
+      const checkoutPayload = {
+        preview: false,
+        payment_method: "cash", // or "visa"
+        coupon_code: "",
+        use_loyalty_points: false,
+        save_as_default_payment: true,
+      };
+  
+      const order = await apiRequest("POST", "/orders/order/checkout/", checkoutPayload);
+
+  
+      if (!order?.order_number) {
+        throw new Error("فشل إنشاء الطلب");
+      }
+  
+      // Optionally, show total to cashier
+      const totalDue = order?.totals?.grand_total ?? 0;
+      const paidAmountStr = prompt(`إجمالي المطلوب: ${totalDue} SAR\nأدخل المبلغ المدفوع:`, totalDue.toString());
+      const paidAmount = parseFloat(paidAmountStr || "0");
+  
+      if (isNaN(paidAmount) || paidAmount < totalDue) {
+        alert("المبلغ المدفوع غير كافٍ لإتمام العملية");
+        return;
+      }
+  
+      // 2️⃣ Validate cash payment
+      const paymentPayload = {
+        order_number: order.order_number,
+        paid_amount: paidAmount,
+        confirm: true,
+      };
+  
+      const paymentResult = await apiRequest("POST", "/invoices/payments/cash/validate/", paymentPayload);
+  
+      if (!paymentResult?.invoice?.pdf_url) {
+        throw new Error("لم يتم إصدار الفاتورة بنجاح");
+      }
+  
+      // 3️⃣ Display invoice + change
+      const changeDue = paymentResult?.summary?.change_due ?? 0;
+      alert(`تم الدفع بنجاح ✅\nالمتبقي للعميل: ${changeDue} SAR`);
+  
+      setInvoiceUrl(paymentResult.invoice.pdf_url);
+  
+      // 4️⃣ Clear cart + reset
+      await apiRequest("POST", "/orders/cart/clear/");
+      queryClient.invalidateQueries(["cart"]);
+  
+    } catch (error) {
+      console.error(error);
+      alert("حدث خطأ أثناء معالجة الدفع");
+    }
+  };
+  
 
   // Cart operations
   const addToCart = (product: any) => {
     setCart(prev => {
       const existingItem = prev.find(item => item.id === product.id);
+  
       if (existingItem) {
+        // If item already exists, just increment quantity
         return prev.map(item =>
           item.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       } else {
-        return [...prev, {
-          id: product.id,
-          name: product.name,
-          price: parseFloat(product.pricing.final_price),
-          quantity: 1,
-          barcode: product.barcode
-        }];
+        // Add new item with extra details
+        return [
+          ...prev,
+          {
+            id: product.id,
+            name: product.name,
+            price: parseFloat(product.pricing.final_price),
+            quantity: 1,
+            barcode: product.barcode,
+            image_url: product.image_url || "",             // 🆕 image
+            loyalty_points: product.loyalty_points || 0,     // 🆕 points
+            weight: product.weight || "",                    // 🆕 weight
+          },
+        ];
       }
     });
   };
+  
 
   const updateQuantity = (id: number, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -463,7 +553,7 @@ export default function CashierPOS() {
                         </div>
                       </CardContent>
                     </Card>
-
+                    
                     {/* Shopping Cart */}
                     <Card>
                       <CardHeader>
@@ -475,6 +565,7 @@ export default function CashierPOS() {
                           <Badge variant="secondary">{cart.length} منتج</Badge>
                         </CardTitle>
                       </CardHeader>
+
                       <CardContent>
                         {cart.length === 0 ? (
                           <div className="text-center text-gray-500 dark:text-gray-400 py-8">
@@ -486,21 +577,51 @@ export default function CashierPOS() {
                           <div className="space-y-4">
                             {cart.map((item) => (
                               <Card key={item.id} className="p-4">
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-4">
+                                  
+                                  {/* ✅ Product Image */}
+                                  {item.image_url && (
+                                    <img
+                                      src={item.image_url}
+                                      alt={item.name}
+                                      className="w-16 h-16 rounded-md object-cover border"
+                                    />
+                                  )}
+
+                                  {/* ✅ Product Info */}
                                   <div className="flex-1">
                                     <h4 className="font-medium text-gray-900 dark:text-white">
                                       {item.name}
                                     </h4>
+
+                                    {/* ✅ Weight */}
+                                    {item.weight && (
+                                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        {item.weight} جرام
+                                      </p>
+                                    )}
+
                                     <p className="text-sm text-gray-600 dark:text-gray-400">
                                       {item.price.toLocaleString('ar-SA')} ر.س للقطعة
                                     </p>
+
+                                    {/* ✅ Barcode */}
                                     {item.barcode && (
                                       <p className="text-xs text-gray-500 dark:text-gray-400">
                                         الباركود: {item.barcode}
                                       </p>
                                     )}
+
+                                    {/* ✅ Loyalty Points */}
+                                    {item.loyalty_points !== undefined && (
+                                      <div className="flex items-center gap-1 mt-1 text-green-600 dark:text-green-400 text-sm">
+                                        <span>🌿</span>
+                                        <span>{item.loyalty_points} نقاط</span>
+                                      </div>
+                                    )}
                                   </div>
 
+                                  {/* ✅ Quantity Controls + Total + Remove */}
                                   <div className="flex items-center gap-3">
                                     <div className="flex items-center gap-2">
                                       <Button
@@ -543,6 +664,7 @@ export default function CashierPOS() {
                         )}
                       </CardContent>
                     </Card>
+
                   </div>
 
                   {/* Order Summary & Payment */}
@@ -581,6 +703,22 @@ export default function CashierPOS() {
                             <span>{(calculateTotal() * 1.15).toLocaleString('ar-SA')} ر.س</span>
                           </div>
                         </div>
+
+                        {/* Loyalty Points Earned */}
+                        <div className="flex justify-between text-green-600 font-medium">
+                                <span>نقاط الولاء المكتسبة:</span>
+                                <span>
+                                  {cart
+                                    .reduce(
+                                      (total, item) =>
+                                        total +
+                                        (item.loyalty_points ? item.loyalty_points * item.quantity : 0),
+                                      0
+                                    )
+                                    .toLocaleString('ar-SA')}{" "}
+                                  نقطة
+                                </span>
+                              </div>
 
                         <div className="space-y-3">
                           <Button

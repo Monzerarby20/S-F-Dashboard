@@ -12,3 +12,5 @@ export const getProductByBartcode = async (barcode:string) => {
         throw error;
     }
 }
+
+

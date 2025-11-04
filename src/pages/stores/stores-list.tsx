@@ -55,7 +55,7 @@ export default function StoresListPage() {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; store?: Store }>({ open: false });
   const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
   const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
-  const [formData, setFormData] = useState({
+  const [storeForm, setStoreForm] = useState({
     store_type: "",
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -199,7 +199,7 @@ export default function StoresListPage() {
                 // دمج مواعيد العمل مع بيانات الفورم
                 const finalPayload = {
                   ...payload,
-                  store_type: formData.store_type, 
+                  store_type: storeForm.store_type, 
                   opening_hours: openingHours, // ✅ هنا بنضيف الأوقات فعليًا
                 };
             
@@ -222,9 +222,10 @@ export default function StoresListPage() {
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">نوع المتجر</label>
                 <Select
-                  value={formData.store_type}
+                  value={storeForm.store_type}
+                  name="store_type"
                   onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, store_type: value }))
+                    setStoreForm((prev) => ({ ...prev, store_type: value }))
                   }
                 >
                   <SelectTrigger className="w-full">

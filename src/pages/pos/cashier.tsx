@@ -737,9 +737,12 @@ export default function CashierPOS() {
                               </Button>
                             </div>
                             <div className="text-right min-w-[80px]">
-                              <p className="text-green-600 dark:text-green-400 font-bold text-sm mb-1">
-                                5 ✱
+                            <div className="flex flex-row items-center gap-1 w-[41px] h-[24px] justify-center">
+                              <p className="text-green-600 dark:text-green-400 font-bold text-lg">
+                                5
                               </p>
+                              <SixPointsIcon />
+                            </div>
                               <p className="font-bold text-base">91.00 ر.س</p>
                             </div>
                             <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">
@@ -773,9 +776,12 @@ export default function CashierPOS() {
                               </Button>
                             </div>
                             <div className="text-right min-w-[80px]">
-                              <p className="text-green-600 dark:text-green-400 font-bold text-sm mb-1">
-                                2 ✱
+                            <div className="flex flex-row items-center gap-1 w-[41px] h-[24px] justify-center">
+                              <p className="text-green-600 dark:text-green-400 font-bold text-lg">
+                                2
                               </p>
+                              <SixPointsIcon />
+                            </div>
                               <p className="font-bold text-base">47.25 ر.س</p>
                             </div>
                             <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">

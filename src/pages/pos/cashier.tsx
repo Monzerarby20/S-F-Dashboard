@@ -1557,7 +1557,7 @@ export default function CashierPOS() {
                       exit={{ opacity: 0, scale: 0.9 }}
                       transition={{ duration: 0.25 }}
                     >
-                      {step === "select" || step ==="cash" && (
+                      {step === "select"  && (
                         <>
                       <h2 className="text-xl font-semibold mb-1">اختر وسيلة الدفع</h2>
                       <p className="text-gray-500 mb-4 text-sm">

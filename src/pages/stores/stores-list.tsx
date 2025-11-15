@@ -15,7 +15,7 @@ import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
 import { Textarea } from "@/components/ui/textarea";
-import { createNewStore } from "@/services/stores";
+import { createNewStore, getStoreBySlug } from "@/services/stores";
 
 import {
   Dialog,
@@ -52,6 +52,8 @@ export default function StoresListPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const userRole = localStorage.getItem('userRole');
+  const userSlug = localStorage.getItem('userSlug');
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; store?: Store }>({ open: false });
   const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
   const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
@@ -84,9 +86,19 @@ export default function StoresListPage() {
   // Fetch all stores (admin) or current store (user)
   const { data: stores = [], isLoading, error } = useQuery({
     queryKey: ['stores'],
-    queryFn: getAllStores,
-
+    queryFn: () => {
+      if (userRole === "admin"){
+        return getAllStores();
+      } else{
+        return getStoreBySlug(userSlug);
+      }
+     
+    }
   });
+
+
+  // get Store by slug when it not admin 
+
   console.log("Fetched stores:", stores);
   console.log(BASE_URL)
 
@@ -177,14 +189,18 @@ export default function StoresListPage() {
         description="عرض وإدارة معلومات المتجر الحالي"
         icon={<Store className="h-8 w-8" />}
       />
+      {userRole === "admin" && (
+
+      
       <div className="flex justify-end mb-4">
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-primary text-white hover:bg-primary/90">
               <Plus className="ml-2 h-4 w-4" /> إضافة متجر جديد
+              
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto rounded-2xl]">
+          <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto rounded-2xl">
 
             <DialogHeader>
               <DialogTitle>إضافة متجر جديد</DialogTitle>
@@ -240,6 +256,18 @@ export default function StoresListPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <Input name="tax_number" placeholder="الرقم الضريبي" />
+
+              <Input name="commercial_register" placeholder="السجل التجاري" />
+
+              <Input name="bank_name" placeholder="اسم البنك" />
+
+              <Input name="bank_account_number" placeholder="رقم الحساب البنكي" />
+
+              <Input name="iban" placeholder="رقم الآيبان" />
+
+              <Input name="swift_code" placeholder="رمز السويفت" />
+
 
               <div className="border p-3 rounded-md">
                 <h4 className="font-semibold mb-2">مواعيد العمل</h4>
@@ -293,7 +321,7 @@ export default function StoresListPage() {
           </DialogContent>
         </Dialog>
       </div>
-
+)}
 
       <div className="space-y-6">
         {/* Search */}

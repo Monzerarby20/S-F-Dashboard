@@ -10,14 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScanBarcode, ShoppingCart, Plus, Minus, X, Menu, Package, QrCode, CheckCircle, XCircle, AlertTriangle, User, CreditCard, Clock, Grip, GripVertical, GripHorizontal, Trash ,Trash2 } from "lucide-react";
+import { ScanBarcode, ShoppingCart, Plus, Minus, X, Menu, Package, QrCode, CheckCircle, XCircle, AlertTriangle, User, CreditCard, Clock, Grip, GripVertical, GripHorizontal, Trash, Trash2, Wallet, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import QuickCustomerAdd from "@/components/customers/quick-customer-add";
 import TestQRGenerator from "@/components/qr/test-qr-generator";
-import { getProductByBartcode } from "@/services/cashier";
+import { checkoutProcess, getProductByBartcode, removeProduct, updateCartItem, getSummary, emptyCart, addToCartApi, getCartItem, checkoutOrder, validateCashPayment } from "@/services/cashier";
 import SixPointsIcon from "@/components/ui/SixPointsIcon";
 import { getStoreBySlug } from "@/services/stores";
+import { motion, AnimatePresence } from "framer-motion";
+
 interface CartItem {
   id: number;
   name: string;
@@ -53,9 +55,18 @@ export default function CashierPOS() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  // Popup state
+  const [showPopup, setShowPopup] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+
+  const [step, setStep] = useState("select"); // select | cash | processing | success
+  const [paidAmount, setPaidAmount] = useState("");
+  const [total] = useState(142.5);
+  const [change, setChange] = useState(0);
 
   // POS State
   const [cart, setCart] = useState<CartItem[]>([]);
+  // const [cartApi,setCartApi] = useState<CartItem[]>([])
   const [barcodeInput, setBarcodeInput] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -77,8 +88,19 @@ export default function CashierPOS() {
   const { data: store, isLoading: storeLoading, error: storeError } = useQuery({
     queryKey: ['/stores', userStoreSlug],
     queryFn: () => getStoreBySlug(userStoreSlug),
-    enabled: !!userStoreSlug, // يتأكد إنه مش null
+    enabled: !!userStoreSlug, 
   });
+  //Fetch cart data
+  const { data: cartApi, isLoading: cartLoading, error: carError } = useQuery({
+    queryKey: ['cartApi'],
+    queryFn: getCartItem,
+  })
+  console.log("cartItems", cartApi)
+  const { data: cartSummary = [], isLoading: cartSummaryLoading, error: carSummaryError } = useQuery({
+    queryKey: ['cartSummary'],
+    queryFn: getSummary,
+  })
+  console.log("cartItems from summary", cartSummary)
 
   useEffect(() => {
     console.log("fetched current store", store);
@@ -90,23 +112,44 @@ export default function CashierPOS() {
 
   console.log(storeLatitude, storeLongitude)
   // Fetch products by barcode
+  const handleProcessOrder2 = () => {
+    if (!paymentMethod) return;
+   
+    if (paymentMethod === "cash") {
+      setStep("cash");
+    } else if (paymentMethod === "visa") {
+      setStep("processing");
+      // simulate processing
+      setTimeout(() => {
+        setStep("success");
+      }, 2000);
+    } else if (step === "cash"){
+      setStep("success");
+    }
+  };
 
   const findProductMutation = useMutation({
-    mutationFn: async (input) => {
-      console.log("➡️ Mutation started with:", input);
-      const payload: any = {
-        barcode: input,
-        latitude: storeLatitude,
-        longitude: storeLongitude,
-      };
+    mutationFn: async (payload) => {
+      console.log("➡️ Mutation started with:", payload);
       const response = await getProductByBartcode(payload);
       console.log("✅ Product fetched:", response);
+
       return response;
     },
     onSuccess: (data) => {
-      const product = data.product
+      const product = data.product;
       console.log("🎉 onSuccess fired:", product);
       addToCart(product);
+
+      const productDate = {
+        "product_id": data.product.id,
+        "quantity": 1,
+        "latitude": storeLatitude,
+      "longitude": storeLongitude,
+        "notes": data.product.description
+      }
+      console.log("Product data that will add in cart", productDate)
+      addToCartMutation.mutate(productDate)
       setBarcodeInput("");
       setIsScanning(false);
       toast({
@@ -126,63 +169,122 @@ export default function CashierPOS() {
     },
   });
 
-  // Fetch customer orders (for verification)
-  // const fetchCustomerOrdersMutation = useMutation({
-  //   mutationFn: async () => {
-  //     setIsFetchingOrders(true);
-  //     const response = await apiRequest("GET", "/api/customer-orders");
-  //     return response.json();
-  //   },
-  //   onSuccess: (data) => {
-  //     setCustomerOrders(data);
-  //     setIsFetchingOrders(false);
-  //     toast({
-  //       title: "تم تحميل الطلبات",
-  //       description: `تم العثور على ${data.length} طلب.`,
-  //     });
-  //   },
-  //   onError: () => {
-  //     setIsFetchingOrders(false);
-  //     toast({
-  //       title: "خطأ",
-  //       description: "فشل في تحميل الطلبات",
-  //       variant: "destructive",
-  //     });
-  //   },
-  // });
+  //Empty cart
+  const emptyCartMutation = useMutation({
+    mutationFn: emptyCart,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
 
+      toast({
+        title: "تم مسح السلة",
+        description: "تم تفريغ جميع المنتجات من السلة",
+      });
+      console.log("🧹 Cart cleared:", data);
+      queryClient.invalidateQueries({ queryKey: ["cartApi"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "خطأ في التفريغ",
+        description: "لم يتم مسح السلة بنجاح",
+        variant: "destructive",
+      });
+      console.error("❌ Error clearing cart:", error);
+    },
+  });
+
+  const addToCartMutation = useMutation({
+    mutationFn: addToCartApi,
+    onSuccess: (data) => {
+      toast({
+        title: "تمت الإضافة",
+        description: "تمت إضافة المنتج إلى السلة بنجاح",
+      });
+      console.log("✅ Added to cart:", data);
+      queryClient.invalidateQueries({ queryKey: ["cartApi"] });
+      queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
+
+    },
+    onError: (error) => {
+      toast({
+        title: "خطأ في الإضافة",
+        description: "فشل في إضافة المنتج إلى السلة",
+        variant: "destructive",
+      });
+      console.error("❌ Error adding to cart:", error);
+    },
+  });
+
+
+  // Remove Product
+  const removeProductMutation = useMutation({
+    mutationFn: removeProduct,
+    onSuccess: (data) => {
+      toast({
+        title: "تم حذف المنتج",
+        description: "تم حذف المنتج من السلة بنجاح",
+      });
+      console.log("🗑️ Product removed:", data);
+      queryClient.invalidateQueries({ queryKey: ["cartApi"] });
+      queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
+
+    },
+    onError: (error) => {
+      toast({
+        title: "خطأ في الحذف",
+        description: "لم يتم حذف المنتج من السلة",
+        variant: "destructive",
+      });
+      console.error("❌ Error removing product:", error);
+    },
+  });
 
   // Process order mutation
   const processOrderMutation = useMutation({
-    mutationFn: async (orderData: any) => {
-      const response = await apiRequest('POST', '/orders', orderData);
-      return response.json();
-    },
-    onSuccess: () => {
+    mutationFn: checkoutProcess,
+    onSuccess: (data) => {
       toast({
         title: "تم إتمام البيع",
         description: "تم حفظ الطلب بنجاح",
       });
+      console.log("✅ Order created:", data);
+      setStep("select")
+      setShowPopup(false)
       clearCart();
       setSelectedCustomer(null);
       queryClient.invalidateQueries({ queryKey: ['/dashboard'] });
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "خطأ في الطلب",
         description: "فشل في حفظ الطلب",
         variant: "destructive",
       });
+      console.error("❌ Error:", error);
     },
   });
+
+  const handleProcessOrder3 = () => {
+    if (step === "cash") {
+      // هنا المستخدم في شاشة الكاش وضغط "إصدار الفاتورة"
+      if (!paidAmount || paidAmount < total) {
+        toast({
+          title: "الرجاء ادخال مبلغ مناسب",
+          description: "ادخل مبلغ يعادل السعر المناسب",
+          variant: "destructive",
+        });
+        return;
+      }
+      setStep("success"); // لو تمام، يروح لشاشة النجاح
+    }
+  };
 
   // Handle barcode scanning
   const handleBarcodeSubmit = () => {
     if (!barcodeInput.trim()) return;
 
-    // const input = barcodeInput.trim();
-    // const input = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
     const input = barcodeInput.trim();
+
+    // Handle invoice (PDF) input
     if (input.endsWith(".pdf")) {
       setInvoiceUrl(input);
       toast({
@@ -191,94 +293,316 @@ export default function CashierPOS() {
       });
       return;
     }
-    // Check if it's a QR code (starts with QR-) for customer orders
-    if (input.startsWith('QR-') && activeTab === "qr-verification") {
+
+    // Handle QR code scanning (for customer orders)
+    if (input.startsWith("QR-") && activeTab === "qr-verification") {
       setQrInput(input);
       fetchQROrderMutation.mutate(input);
     } else {
       // Regular barcode scanning
       if (activeTab === "pos") {
         setIsScanning(true);
-        findProductMutation.mutate(input);
-      } else if (activeTab === "qr-verification" && currentOrder) {
+
+        // ✅ Correct payload for your backend
+        const payload = {
+          barcode: input,
+          latitude: storeLatitude ?? 29.9601,
+          longitude: storeLongitude ?? 31.2594,
+        };
+
+        console.log("📦 Payload sent:", payload);
+
+        // ✅ Fixed mutation call to send payload properly
+        findProductMutation.mutate(payload);
+      }
+      // Handle QR verification scanning
+      else if (activeTab === "qr-verification" && currentOrder) {
         setIsQRScanning(true);
+
+        // ✅ Make sure we send full object for QR order scan
         scanProductMutation.mutate({
           qrOrderId: currentOrder.id,
-          barcode: input
+          barcode: input,
         });
       }
     }
   };
+  // ✅ ميوتشيشن لإنشاء الطلب (Checkout)
+  const checkoutMutation = useMutation({
+    mutationFn: checkoutOrder,
+    onSuccess: (order) => {
+      toast({
+        title: "تم إنشاء الطلب",
+        description: `رقم الطلب: ${order.order_number}`,
+      });
+
+      const totalDue = order?.totals?.grand_total ?? 0;
+      const paidAmountStr = prompt(
+        `إجمالي المطلوب: ${totalDue} SAR\nأدخل المبلغ المدفوع:`,
+        totalDue.toString()
+      );
+      const paidAmount = parseFloat(paidAmountStr || "0");
+
+      if (isNaN(paidAmount) || paidAmount < totalDue) {
+        toast({
+          title: "مبلغ غير كافٍ",
+          description: "المبلغ المدفوع غير كافٍ لإتمام العملية",
+          variant: "destructive",
+        });
+        return;
+      }
+      // ✅ تنفيذ الدفع بعد نجاح الـ checkout
+      validateCashMutation.mutate({ order_number: order.order_number, paid_amount: paidAmount });
+    },
+    onError: () => {
+      toast({
+        title: "خطأ",
+        description: "فشل إنشاء الطلب",
+        variant: "destructive",
+      });
+    },
+  });
+
+
+  
+  // ✅ ميوتشيشن لتأكيد الدفع بالكاش
+  const validateCashMutation = useMutation({
+    mutationFn: validateCashPayment,
+    onSuccess: async (paymentResult) => {
+      const changeDue = paymentResult?.summary?.change_due ?? 0;
+      toast({
+        title: "تم الدفع بنجاح ✅",
+        description: `المتبقي للعميل: ${changeDue} SAR`,
+      });
+
+      // 🧹 مسح السلة بعد الدفع
+      clearCart();
+      queryClient.invalidateQueries({ queryKey: ["cartApi"] });
+      queryClient.invalidateQueries({ queryKey: ["cartSummary"] });
+
+      // 🧾 عرض الفاتورة
+      if (paymentResult.invoice?.pdf_url) {
+        window.open(paymentResult.invoice.pdf_url, "_blank");
+      }
+    },
+    onError: () => {
+      toast({
+        title: "خطأ في الدفع",
+        description: "حدث خطأ أثناء تأكيد الدفع",
+        variant: "destructive",
+      });
+    },
+  });
+
+//   // 🧠 لما المستخدم يضغط على الدفع
+//   const handlePayment = () => {
+//     checkoutMutation.mutate();
+//   };
+
+//   return (
+//     <button
+//       onClick={handlePayment}
+//       disabled={checkoutMutation.isLoading || validateCashMutation.isLoading}
+//       className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+//     >
+//       {checkoutMutation.isLoading || validateCashMutation.isLoading
+//         ? "جارٍ المعالجة..."
+//         : "ادفع الآن"}
+//     </button>
+//   );
+// }
+
+  const handlePayment = async () => {
+    try {
+      if (!cart || cart.length === 0) {
+        alert("السلة فارغة");
+        return;
+      }
+
+      // 1️⃣ Checkout order
+      const checkoutPayload = {
+        preview: false,
+        payment_method: "cash", // or "visa"
+        coupon_code: "",
+        use_loyalty_points: false,
+        save_as_default_payment: true,
+      };
+
+      const order = await apiRequest("POST", "/orders/order/checkout/", checkoutPayload);
+
+
+      if (!order?.order_number) {
+        throw new Error("فشل إنشاء الطلب");
+      }
+
+      // Optionally, show total to cashier
+      const totalDue = order?.totals?.grand_total ?? 0;
+      const paidAmountStr = prompt(`إجمالي المطلوب: ${totalDue} SAR\nأدخل المبلغ المدفوع:`, totalDue.toString());
+      const paidAmount = parseFloat(paidAmountStr || "0");
+
+      if (isNaN(paidAmount) || paidAmount < totalDue) {
+        alert("المبلغ المدفوع غير كافٍ لإتمام العملية");
+        return;
+      }
+
+      // 2️⃣ Validate cash payment
+      const paymentPayload = {
+        order_number: order.order_number,
+        paid_amount: paidAmount,
+        confirm: true,
+      };
+
+      const paymentResult = await apiRequest("POST", "/invoices/payments/cash/validate/", paymentPayload);
+
+      if (!paymentResult?.invoice?.pdf_url) {
+        throw new Error("لم يتم إصدار الفاتورة بنجاح");
+      }
+
+      // 3️⃣ Display invoice + change
+      const changeDue = paymentResult?.summary?.change_due ?? 0;
+      alert(`تم الدفع بنجاح ✅\nالمتبقي للعميل: ${changeDue} SAR`);
+
+      setInvoiceUrl(paymentResult.invoice.pdf_url);
+
+      // 4️⃣ Clear cart + reset
+      await apiRequest("POST", "/orders/cart/clear/");
+      queryClient.invalidateQueries(["cartApi"]);
+
+    } catch (error) {
+      console.error(error);
+      alert("حدث خطأ أثناء معالجة الدفع");
+    }
+  };
+
 
   // Cart operations
   const addToCart = (product: any) => {
     setCart(prev => {
       const existingItem = prev.find(item => item.id === product.id);
+
       if (existingItem) {
+        // If item already exists, just increment quantity
         return prev.map(item =>
           item.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       } else {
-        return [...prev, {
-          id: product.id,
-          name: product.name,
-          price: parseFloat(product.pricing.final_price),
-          quantity: 1,
-          barcode: product.barcode
-        }];
+        // Add new item with extra details
+        return [
+          ...prev,
+          {
+            id: product.id,
+            name: product.name,
+            price: parseFloat(product.pricing.final_price),
+            quantity: 1,
+            barcode: product.barcode,
+            image_url: product.image_url || "",             // 🆕 image
+            loyalty_points: product.loyalty_points || 0,     // 🆕 points
+            weight: product.weight || "",                    // 🆕 weight
+          },
+        ];
       }
     });
   };
 
+
+
   const updateQuantity = (id: number, newQuantity: number) => {
     if (newQuantity <= 0) {
       removeFromCart(id);
+
+      const itemId = id;
+      console.log("Item id to delete with update", itemId)
+      removeProductMutation.mutate(itemId);
       return;
     }
+    const editedData = {
+      "product_id": id,
+      "quantity": newQuantity,
+      "notes": "Need them ASAP"
+    }
+    console.log("Updated data", editedData)
+    const productId = id
+    updateCartMutation.mutate({ productId, editedData });
+
     setCart(prev => prev.map(item =>
       item.id === id ? { ...item, quantity: newQuantity } : item
+
     ));
   };
 
   const removeFromCart = (id: number) => {
     setCart(prev => prev.filter(item => item.id !== id));
+    
+    removeProductMutation.mutate(id);
+
+
   };
 
   const clearCart = () => {
+    emptyCartMutation.mutate();
+
     setCart([]);
   };
 
   const calculateTotal = () => {
-    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return cartSummary.reduce((total, item) => total + (item.unit_price * item.quantity), 0);
   };
 
   const handleProcessOrder = () => {
+    console.log("I'm here in handleprocessorder")
     if (cart.length === 0) return;
 
     const orderData = {
-      customerId: selectedCustomer?.id,
+
+      // customerId: selectedCustomer?.id,
       branchId: 1, // Default branch
       employeeId: user?.id,
       status: 'completed',
-      paymentMethod: 'cash',
+      payment_method: paymentMethod,
       subtotal: calculateTotal().toFixed(2),
+      latitude: storeLatitude,
+      longitude: storeLongitude,
       discountAmount: "0",
       vatAmount: (calculateTotal() * 0.15).toFixed(2),
       totalAmount: (calculateTotal() * 1.15).toFixed(2),
       paidAmount: (calculateTotal() * 1.15).toFixed(2),
       changeAmount: "0"
     };
+    console.log("Order details", orderData)
 
     processOrderMutation.mutate(orderData);
   };
+  //Update item in cart
+  const updateCartMutation = useMutation({
+    mutationFn: ({ productId, editedData }: { productId: number; editedData: object }) =>
+      updateCartItem(productId, editedData),
+    onSuccess: (data) => {
+      toast({
+        title: "تم التحديث",
+        description: "تم تعديل المنتج في السلة بنجاح",
+      });
+      console.log("📝 Product updated:", data);
+      queryClient.invalidateQueries({ queryKey: ["cartApi"] });
+      queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
+
+    },
+    onError: (error) => {
+      toast({
+        title: "خطأ في التحديث",
+        description: "فشل تعديل المنتج في السلة",
+        variant: "destructive",
+      });
+      console.error("❌ Error updating product:", error);
+    },
+  });
+
 
   // QR Order mutations
   const fetchQROrderMutation = useMutation({
     mutationFn: async (qrCode: string) => {
-      const response = await apiRequest('GET', `/api/qr-orders/${encodeURIComponent(qrCode)}`);
-      return response.json();
+      return await fetchQROrderByCode(qrCode);
     },
     onSuccess: (order) => {
       setCurrentOrder(order);
@@ -431,7 +755,12 @@ export default function CashierPOS() {
       toast({ title: "تم تحميل الطلبات التجريبية" });
     },
   });
-
+  const handleCancel = () => {
+    setStep("select");
+    setPaymentMethod("");
+    setPaidAmount("");
+    setShowPopup(false);
+  };
 
   return (
     <div className="min-h-screen flex" dir="rtl">
@@ -530,11 +859,12 @@ export default function CashierPOS() {
                             <ShoppingCart className="h-5 w-5" />
                             سلة التسوق
                           </span>
-                          <Badge variant="secondary">{cart.length} منتج</Badge>
+                          <Badge variant="secondary">{cartSummary.length} منتج</Badge>
                         </CardTitle>
                       </CardHeader>
+
                       <CardContent>
-                        {cart.length === 0 ? (
+                        {cartSummary.length === 0 ? (
                           <div className="text-center text-gray-500 dark:text-gray-400 py-8">
                             <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
                             <p>لا توجد منتجات في السلة</p>
@@ -542,29 +872,60 @@ export default function CashierPOS() {
                           </div>
                         ) : (
                           <div className="space-y-4">
-                            {cart.map((item) => (
+                            {cartSummary.map((item) => (
+
                               <Card key={item.id} className="p-4">
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-4">
+
+                                  {/* ✅ Product Image */}
+                                  {item.product_image && (
+                                    <img
+                                      src={item.product_image}
+                                      alt={item.product_name}
+                                      className="w-16 h-16 rounded-md object-cover border"
+                                    />
+                                  )}
+
+                                  {/* ✅ Product Info */}
                                   <div className="flex-1">
                                     <h4 className="font-medium text-gray-900 dark:text-white">
                                       {item.name}
                                     </h4>
+
+                                    {/* ✅ Weight */}
+                                    {item.weight && (
+                                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        {item.weight} جرام
+                                      </p>
+                                    )}
+
                                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                                      {item.price.toLocaleString('ar-SA')} ر.س للقطعة
+                                      {Number(item.unit_price).toLocaleString('ar-SA')} ر.س للقطعة
                                     </p>
+
+                                    {/* ✅ Barcode */}
                                     {item.barcode && (
                                       <p className="text-xs text-gray-500 dark:text-gray-400">
                                         الباركود: {item.barcode}
                                       </p>
                                     )}
+
+                                    {/* ✅ Loyalty Points */}
+                                    {item.loyalty_points_per_item !== undefined && (
+                                      <div className="flex items-center gap-1 mt-1 text-green-600 dark:text-green-400 text-sm">
+                                        <span>🌿</span>
+                                        <span>{item.loyalty_points_per_item} نقاط</span>
+                                      </div>
+                                    )}
                                   </div>
 
+                                  {/* ✅ Quantity Controls + Total + Remove */}
                                   <div className="flex items-center gap-3">
                                     <div className="flex items-center gap-2">
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                        onClick={() => updateQuantity(item.cart_item_id, item.quantity - 1)}
                                       >
                                         <Minus className="h-3 w-3" />
                                       </Button>
@@ -574,7 +935,7 @@ export default function CashierPOS() {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                        onClick={() => updateQuantity(item.cart_item_id, item.quantity + 1)}
                                       >
                                         <Plus className="h-3 w-3" />
                                       </Button>
@@ -582,16 +943,16 @@ export default function CashierPOS() {
 
                                     <div className="text-center">
                                       <p className="font-bold text-lg">
-                                        {(item.price * item.quantity).toLocaleString('ar-SA')} ر.س
+                                        {(item.unit_price * item.quantity).toLocaleString('ar-SA')} ر.س
                                       </p>
                                     </div>
 
                                     <Button
                                       variant="destructive"
                                       size="sm"
-                                      onClick={() => removeFromCart(item.id)}
+                                      onClick={() => removeFromCart(item.cart_item_id)}
                                     >
-                                      <X className="h-3 w-3" />
+                                      <Trash2 className="h-5 w-5" />
                                     </Button>
                                   </div>
                                 </div>
@@ -601,6 +962,7 @@ export default function CashierPOS() {
                         )}
                       </CardContent>
                     </Card>
+
                   </div>
 
                   {/* Order Summary & Payment */}
@@ -640,12 +1002,29 @@ export default function CashierPOS() {
                           </div>
                         </div>
 
+                        {/* Loyalty Points Earned */}
+                        <div className="flex justify-between text-green-600 font-medium">
+                          <span>نقاط الولاء المكتسبة:</span>
+                          <span>
+                            {cart
+                              .reduce(
+
+                                (total, item) =>
+                                  total +
+                                  (item.loyalty_points_per_item ? item.loyalty_points_per_item * item.quantity : 0),
+                                0
+                              )
+                              .toLocaleString('ar-SA')}{" "}
+                            نقطة
+                          </span>
+                        </div>
+
                         <div className="space-y-3">
                           <Button
                             className="w-full"
                             size="lg"
                             disabled={cart.length === 0 || processOrderMutation.isPending}
-                            onClick={handleProcessOrder}
+                            onClick={() => setShowPopup(true)}
                           >
                             {processOrderMutation.isPending ? (
                               <>
@@ -664,7 +1043,7 @@ export default function CashierPOS() {
                             variant="outline"
                             className="w-full"
                             onClick={clearCart}
-                            disabled={cart.length === 0}
+                            disabled={cartSummary.length === 0}
                           >
                             مسح السلة
                           </Button>
@@ -737,12 +1116,12 @@ export default function CashierPOS() {
                               </Button>
                             </div>
                             <div className="text-right min-w-[80px]">
-                            <div className="flex flex-row items-center gap-1 w-[41px] h-[24px] justify-center">
-                              <p className="text-green-600 dark:text-green-400 font-bold text-lg">
-                                5
-                              </p>
-                              <SixPointsIcon />
-                            </div>
+                              <div className="flex flex-row items-center gap-1 w-[41px] h-[24px] justify-center">
+                                <p className="text-green-600 dark:text-green-400 font-bold text-lg">
+                                  5
+                                </p>
+                                <SixPointsIcon />
+                              </div>
                               <p className="font-bold text-base">91.00 ر.س</p>
                             </div>
                             <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">
@@ -776,12 +1155,12 @@ export default function CashierPOS() {
                               </Button>
                             </div>
                             <div className="text-right min-w-[80px]">
-                            <div className="flex flex-row items-center gap-1 w-[41px] h-[24px] justify-center">
-                              <p className="text-green-600 dark:text-green-400 font-bold text-lg">
-                                2
-                              </p>
-                              <SixPointsIcon />
-                            </div>
+                              <div className="flex flex-row items-center gap-1 w-[41px] h-[24px] justify-center">
+                                <p className="text-green-600 dark:text-green-400 font-bold text-lg">
+                                  2
+                                </p>
+                                <SixPointsIcon />
+                              </div>
                               <p className="font-bold text-base">47.25 ر.س</p>
                             </div>
                             <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">
@@ -1158,6 +1537,179 @@ export default function CashierPOS() {
                   </div>
                 )}
               </TabsContent>
+              <AnimatePresence>
+                {showPopup && (
+                  <>
+                    {/* الخلفية */}
+                    <motion.div
+                      className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+                      onClick={() => setShowPopup(false)}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    />
+
+                    {/* المحتوى */}
+                    <motion.div
+                      className="fixed top-1/2 left-1/2 w-[90%] max-w-md bg-white rounded-2xl shadow-lg p-6 text-right z-50"
+                      initial={{ opacity: 0, scale: 0.9, y: "-50%", x: "-50%" }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.25 }}
+                    >
+                      {step === "select" || step ==="cash" && (
+                        <>
+                      <h2 className="text-xl font-semibold mb-1">اختر وسيلة الدفع</h2>
+                      <p className="text-gray-500 mb-4 text-sm">
+                        اختر طريقة الدفع المناسبة لإتمام العملية
+                      </p>
+
+                      <div className="space-y-3">
+                        {/* نقدي */}
+                        <label className="flex items-center justify-between border rounded-lg px-4 py-3 cursor-pointer hover:border-primary transition">
+                          <input
+                            type="radio"
+                            name="payment"
+                            value="cash"
+                            checked={paymentMethod === "cash"}
+                            onChange={() => setPaymentMethod("cash")}
+                            className="accent-primary"
+                            />
+                          <div className="flex items-center gap-2">
+                            <Wallet size={18} />
+                            <span className="font-medium">نقدي</span>
+                          </div>
+                        </label>
+
+                        {/* بطاقة ائتمانية */}
+                        <label className="flex items-center justify-between border rounded-lg px-4 py-3 cursor-pointer hover:border-primary transition">
+                          <input
+                            type="radio"
+                            name="payment"
+                            value="visa"
+                            checked={paymentMethod === "visa"}
+                            onChange={() => setPaymentMethod("visa")}
+                            className="accent-primary"
+                            />
+                          <div className="flex items-center gap-2">
+                            <CreditCard size={18} />
+                            <span className="font-medium">بطاقة ائتمانية</span>
+                          </div>
+                        </label>
+                      </div>
+                            </>
+                          )}
+
+                      {/* الأزرار */}
+                      {step === "select" && (
+                        <>
+                          <div className="flex justify-between mt-6">
+                            <button
+                              onClick={() => setShowPopup(false)}
+                              className="border border-gray-300 text-gray-600 px-5 py-2 rounded-lg hover:bg-gray-100 transition"
+                            >
+                              إلغاء
+                            </button>
+                            <button
+                              onClick={handleProcessOrder2}
+                              className="text-primary-foreground hover:bg-primary/90 text-white px-5 py-2 rounded-lg bg-primary transition"
+                            >
+                              تأكيد
+                            </button>
+                          </div>
+                        </>
+                      )}
+
+                      {step === "cash" && (
+                        <>
+                        
+                          <h2 className="text-xl font-semibold mb-1">إتمام الدفع النقدي</h2>
+                          <p className="text-gray-500 mb-4 text-sm">أدخل المبلغ المدفوع</p>
+
+                          <div className="bg-green-100 text-green-600 px-4 py-2 rounded-lg font-semibold text-center mb-4">
+                            إجمالي المبلغ: {total} ﷼
+                          </div>
+
+                          <input
+                            type="number"
+                            className="w-full border rounded-lg px-3 py-2 mb-3 text-right focus:outline-none focus:ring-2 focus:ring-[#009689]"
+                            placeholder="المبلغ المدفوع"
+                            value={paidAmount}
+                            onChange={(e) => setPaidAmount(e.target.value)}
+                          />
+
+                          {paidAmount && (
+                            <p className="text-gray-700 font-medium text-right mb-2">
+                              الباقي:{" "}
+                              <span className="text-green-600">
+                                {paidAmount - total > 0 ? (paidAmount - total).toFixed(2) : 0} ﷼
+                              </span>
+                            </p>
+                          )}
+
+                          <div className="flex justify-between mt-6">
+                            <button
+                              onClick={handleCancel}
+                              className="border border-gray-300 text-gray-600 px-5 py-2 rounded-lg hover:bg-gray-100 transition"
+                            >
+                              إلغاء
+                            </button>
+                            <button
+                              onClick={handleProcessOrder3}
+                              className="bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg transition"
+                            >
+                              إصدار الفاتورة
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {/* === المرحلة 3: معالجة البطاقة === */}
+                      {step === "processing" && (
+                        <div className="flex flex-col items-center justify-center py-8">
+                          <Loader2 className="h-10 w-10 text-[#009689] animate-spin mb-4" />
+                          <p className="text-gray-700">جارٍ معالجة الدفع من جهاز البطاقة...</p>
+                          <p className="text-gray-400 text-sm mt-1">الرجاء الانتظار...</p>
+                          <button
+                            onClick={handleCancel}
+                            className="border border-gray-300 text-gray-600 px-5 py-2 rounded-lg mt-5 hover:bg-gray-100 transition"
+                          >
+                            إلغاء
+                          </button>
+                          </div>
+                      )} {step === "success" && (
+                        <div className="flex flex-col items-center justify-center py-8 space-y-3">
+                          <div className="bg-green-100 rounded-full p-3">
+                            <CheckCircle2 className="h-10 w-10 text-green-600" />
+                          </div>
+                          <h2 className="text-green-600 text-2xl font-bold">تم الدفع بنجاح!</h2>
+                          <p className="text-gray-600">المبلغ: {total} ﷼</p>
+
+                          {change > 0 && (
+                            <p className="text-gray-700 font-medium">
+                              الباقي: <span className="text-green-600">{change} ﷼</span>
+                            </p>
+                          )}
+
+                          <div className="flex justify-between w-full px-6 mt-4">
+                            <button
+                              onClick={handleCancel}
+                              className="border border-gray-300 text-gray-600 px-5 py-2 rounded-lg hover:bg-gray-100 transition"
+                            >
+                              إلغاء
+                            </button>
+                            <button
+                              onClick={ handleProcessOrder}
+                              className="bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg transition"
+                            >
+                              إصدار الفاتورة
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
 
 
             </Tabs>

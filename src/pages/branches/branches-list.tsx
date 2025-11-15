@@ -31,10 +31,10 @@ export default function BranchesList() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<any>(null);
- 
+
   const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; branch: any | null }>({ isOpen: false, branch: null });
 
- 
+
   const storeSlug = localStorage.getItem('userSlug')
   console.log(storeSlug)
   const handleDeleteBranch = (branch: any) => {
@@ -48,7 +48,7 @@ export default function BranchesList() {
     enabled: !!storeSlug,
   })
 
-  
+
   const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
   const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
 
@@ -172,7 +172,7 @@ export default function BranchesList() {
 
 
   const deleteBranchMutation = useMutation({
-    mutationFn:  async ({ storeSlug, branchSlug }: { storeSlug: string; branchSlug: string }) => {
+    mutationFn: async ({ storeSlug, branchSlug }: { storeSlug: string; branchSlug: string }) => {
       return await deleteBranch(storeSlug, branchSlug);
     },
     onSuccess: () => {
@@ -199,7 +199,7 @@ export default function BranchesList() {
       address: branch.address,
       phone: branch.phone,
       email: branch.email,
-      is_active: branch.is_active??true,
+      is_active: branch.is_active ?? true,
     });
     setIsDialogOpen(true);
   };
@@ -223,6 +223,8 @@ export default function BranchesList() {
       ...data,
       is_active: Boolean(data.is_active),
       opening_hours: openingHours,
+      latitude: data.latitude ? parseFloat(data.latitude) : null,
+      longitude: data.longitude ? parseFloat(data.longitude) : null,
     };
     console.log("📦 Final payload sent to API:", finalPayload);
     if (editingBranch) {
@@ -442,7 +444,7 @@ export default function BranchesList() {
                             <FormControl>
                               <Switch
                                 checked={!!field.value}
-                                onCheckedChange={(checked) => field.onChange(checked)} 
+                                onCheckedChange={(checked) => field.onChange(checked)}
                               />
                             </FormControl>
                           </FormItem>
@@ -578,7 +580,7 @@ export default function BranchesList() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDeleteBranch(branch)} 
+                          onClick={() => handleDeleteBranch(branch)}
                           className="text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" />

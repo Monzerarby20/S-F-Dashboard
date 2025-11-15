@@ -27,10 +27,11 @@ export default function ProductFormNew() {
   const isAdmin = (user as any)?.is_superuser || 
                   (user as any)?.role === 'admin' || 
                   (user as any)?.role === 'superuser' ||
+                  (user as any)?.role === 'owner' ||
                   (user as any)?.is_staff;
   
   // Get store_id from current user
-  const userStoreId = (user as any)?.store_id || (user as any)?.store || '1';
+  const userStoreId = (user as any)?.store_id || (user as any)?.store || '9';
   
   // Selected store state (Admin can change it, regular user uses their store)
   const [selectedStore, setSelectedStore] = useState<string>("");

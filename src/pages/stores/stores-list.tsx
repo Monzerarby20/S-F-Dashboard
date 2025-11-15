@@ -59,9 +59,9 @@ export default function StoresListPage() {
     store_type: "",
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [payload , setPaylod] = useState("")
+  const [payload, setPaylod] = useState("")
   console.log(payload)
-  
+
   const [openingHours, setOpeningHours] = useState(
     days.reduce((acc, day) => ({ ...acc, [day]: { ...defaultDaySchedule } }), {})
   );
@@ -192,17 +192,19 @@ export default function StoresListPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-            
+
                 const formData = new FormData(e.target);
                 const payload = Object.fromEntries(formData.entries());
-            
+
                 // دمج مواعيد العمل مع بيانات الفورم
                 const finalPayload = {
                   ...payload,
-                  store_type: storeForm.store_type, 
+                  store_type: storeForm.store_type,
                   opening_hours: openingHours, // ✅ هنا بنضيف الأوقات فعليًا
+                  latitude: payload.latitude ? parseFloat(payload.latitude) : null,
+                  longitude: payload.longitude ? parseFloat(payload.longitude) : null,
                 };
-            
+
                 setPaylod(finalPayload); // دي بس عشان تشوفها في console لو حابب
                 addStoreMutation.mutate(finalPayload);
               }}

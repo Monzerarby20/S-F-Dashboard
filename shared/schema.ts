@@ -10,11 +10,29 @@ export const insertDepartmentSchema = z.object({
 // Branch schema
 export const insertBranchSchema = z.object({
   name: z.string().min(1, "اسم الفرع مطلوب"),
-  address: z.string().min(1, "العنوان مطلوب"),
+  description: z.string().optional(),
   phone: z.string().min(1, "رقم الهاتف مطلوب"),
   email: z.string().email("البريد الإلكتروني غير صحيح").optional().or(z.literal("")),
-  isActive: z.boolean().default(true),
+  address: z.string().min(1, "العنوان مطلوب"),
+  city: z.string().min(1, "المدينة مطلوبة"),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  postal_code: z.string().optional(),
+  latitude: z.string().optional(),
+  longitude: z.string().optional(),
+  is_main_branch: z.boolean().default(false),
+  is_active: z.boolean().default(false),
+  opening_hours: z.object({
+    saturday: z.object({ open: z.string().optional(), close: z.string().optional() }).optional(),
+    sunday: z.object({ open: z.string().optional(), close: z.string().optional() }).optional(),
+    monday: z.string().optional(),
+    tuesday: z.string().optional(),
+    wednesday: z.string().optional(),
+    thursday: z.object({ open: z.string().optional(), close: z.string().optional() }).optional(),
+    friday: z.object({ open: z.string().optional(), close: z.string().optional() }).optional(),
+  }).optional(),
 });
+
 
 // Product schema
 export const insertProductSchema = z.object({

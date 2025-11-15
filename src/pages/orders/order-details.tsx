@@ -29,6 +29,7 @@ export default function OrderDetails() {
     queryFn: () => getOrderById(Number(orderId)),
     enabled: !!orderId,
   })
+  console.log("Order datat",orderData)
 
   const updateOrderMutation = useMutation({
     mutationFn: async (data: { status: string }) => {
@@ -82,8 +83,8 @@ export default function OrderDetails() {
     );
   }
 
-  const order = (orderData as any);
-  const items = (orderData as any)?.items || [];
+  const order = (orderData as any).order || [];
+  const items = (orderData as any)?.items.details || [];
 
   const getStatusText = (status: string) => {
     switch (status) {
@@ -201,19 +202,19 @@ export default function OrderDetails() {
                   <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">اسم العميل</p>
                     <p className="font-medium">
-                      {order.customer?.name || 'عميل غير مسجل'}
+                      {orderData.customer?.first_name || 'عميل غير مسجل'}
                     </p>
                   </div>
-                  {order.customer?.email && (
+                  {orderData.customer?.email && (
                     <div>
                       <p className="text-sm text-gray-600 dark:text-gray-400">البريد الإلكتروني</p>
-                      <p className="font-medium">{order.customer.email}</p>
+                      <p className="font-medium">{orderData.customer.email}</p>
                     </div>
                   )}
-                  {order.customer?.phone && (
+                  {orderData.customer?.phone && (
                     <div>
                       <p className="text-sm text-gray-600 dark:text-gray-400">رقم الهاتف</p>
-                      <p className="font-medium">{order.customer.phone}</p>
+                      <p className="font-medium">{orderData.customer.phone}</p>
                     </div>
                   )}
                 </CardContent>
@@ -230,9 +231,10 @@ export default function OrderDetails() {
                     <p className="font-medium">{getPaymentMethodText(order.payment_status)}</p>
                   </div>
                   <div>
+                  
                     <p className="text-sm text-gray-600 dark:text-gray-400">المبلغ المدفوع</p>
                     <p className="font-medium">
-                      {Number(order.paidAmount || order.total_amount).toLocaleString('ar-SA')} ر.س
+                      {Number(orderData.totals.total_amount || orderData.total_amount).toLocaleString('ar-SA')} ر.س
                     </p>
                   </div>
                   {order.changeAmount && Number(order.changeAmount) > 0 && (
@@ -299,22 +301,22 @@ export default function OrderDetails() {
                   <div className="w-80 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">الإجمالي الفرعي:</span>
-                      <span>{Number(order.subtotal_amount).toLocaleString('ar-SA')} ر.س</span>
+                      <span>{Number(orderData.totals.subtotal).toLocaleString('ar-SA')} ر.س</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">الخصم:</span>
                       <span className="text-green-600">
-                        -{Number(order.discount_total || 0).toLocaleString('ar-SA')} ر.س
+                        -{Number(orderData.totals.discount || 0).toLocaleString('ar-SA')} ر.س
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">ضريبة القيمة المضافة:</span>
-                      <span>{Number(order.tax_amount).toLocaleString('ar-SA')} ر.س</span>
+                      <span>{Number(orderData.totals.tax_amount).toLocaleString('ar-SA')} ر.س</span>
                     </div>
                     <Separator />
                     <div className="flex justify-between text-lg font-bold">
                       <span>الإجمالي النهائي:</span>
-                      <span>{Number(order.total_amount).toLocaleString('ar-SA')} ر.س</span>
+                      <span>{Number(orderData.totals.total_amount).toLocaleString('ar-SA')} ر.س</span>
                     </div>
                   </div>
                 </div>

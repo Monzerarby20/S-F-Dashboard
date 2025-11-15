@@ -23,7 +23,6 @@ import ReturnsPage from "./pages/returns/returns-page";
 import UsersList from "./pages/users/users-list";
 import AddUser from "./pages/users/add-user";
 import EditUser from "./pages/users/edit-user";
-import RolesManagement from "./pages/roles/roles-management";
 import GuestCustomers from "./pages/customers/guest-customers";
 import CustomersListPage from "./pages/customers/customers-list";
 import ReportsDashboard from "./pages/reports/reports-dashboard";
@@ -63,7 +62,7 @@ function Router() {
           <Route path="/users" component={UsersList} />
           <Route path="/users/add" component={AddUser} />
           <Route path="/users/edit/:id" component={EditUser} />
-          <Route path="/roles" component={RolesManagement} />
+          
           <Route path="/promotions" component={PromotionsList} />
           <Route path="/stories" component={StoriesList} />
           <Route path="/returns" component={ReturnsPage} />

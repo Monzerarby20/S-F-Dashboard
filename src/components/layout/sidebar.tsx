@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { ShoppingCart, LayoutDashboard, ShoppingBag, Package, Warehouse, ScanBarcode, Folder, BarChart3, LogOut, Building2, Users, Megaphone, RotateCcw, Shield, Play, QrCode, Store, Settings, Bell } from "lucide-react";
+import { ShoppingCart, LayoutDashboard, ShoppingBag, Package, Warehouse, ScanBarcode, Folder, BarChart3, LogOut, Building2, Users, Megaphone, RotateCcw,  Play, QrCode, Store, Settings, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import {signOut} from "@/services/auth";
@@ -40,11 +40,7 @@ const navigationItems = [
     href: "/users",
     icon: Users,
   },
-  {
-    title: "الأدوار والصلاحيات",
-    href: "/roles",
-    icon: Shield,
-  },
+ 
   {
     title: "العروض والإعلانات",
     href: "/promotions",

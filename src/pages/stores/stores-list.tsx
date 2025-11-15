@@ -55,13 +55,13 @@ export default function StoresListPage() {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; store?: Store }>({ open: false });
   const defaultDaySchedule = { open: "09:00", close: "22:00", closed: false, all_day: false };
   const days = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
-  const [formData, setFormData] = useState({
+  const [storeForm, setStoreForm] = useState({
     store_type: "",
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [payload , setPaylod] = useState("")
+  const [payload, setPaylod] = useState("")
   console.log(payload)
-  
+
   const [openingHours, setOpeningHours] = useState(
     days.reduce((acc, day) => ({ ...acc, [day]: { ...defaultDaySchedule } }), {})
   );
@@ -192,17 +192,19 @@ export default function StoresListPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-            
+
                 const formData = new FormData(e.target);
                 const payload = Object.fromEntries(formData.entries());
-            
+
                 // دمج مواعيد العمل مع بيانات الفورم
                 const finalPayload = {
                   ...payload,
-                  store_type: formData.store_type, 
+                  store_type: storeForm.store_type,
                   opening_hours: openingHours, // ✅ هنا بنضيف الأوقات فعليًا
+                  latitude: payload.latitude ? parseFloat(payload.latitude) : null,
+                  longitude: payload.longitude ? parseFloat(payload.longitude) : null,
                 };
-            
+
                 setPaylod(finalPayload); // دي بس عشان تشوفها في console لو حابب
                 addStoreMutation.mutate(finalPayload);
               }}
@@ -222,9 +224,10 @@ export default function StoresListPage() {
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">نوع المتجر</label>
                 <Select
-                  value={formData.store_type}
+                  value={storeForm.store_type}
+                  name="store_type"
                   onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, store_type: value }))
+                    setStoreForm((prev) => ({ ...prev, store_type: value }))
                   }
                 >
                   <SelectTrigger className="w-full">

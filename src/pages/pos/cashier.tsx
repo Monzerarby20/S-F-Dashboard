@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import QuickCustomerAdd from "@/components/customers/quick-customer-add";
 import TestQRGenerator from "@/components/qr/test-qr-generator";
-import { checkoutProcess, getProductByBartcode, removeProduct, updateCartItem, getSummary, emptyCart, addToCartApi, getCartItem, checkoutOrder, validateCashPayment } from "@/services/cashier";
+import { checkoutProcess, getProductByBartcode, removeProduct, updateCartItem, getSummary, emptyCart, addToCartApi, getCartItem, checkoutOrder, validateCashPayment, getOrderByOrd } from "@/services/cashier";
 import SixPointsIcon from "@/components/ui/SixPointsIcon";
 import { getStoreBySlug } from "@/services/stores";
 import { motion, AnimatePresence } from "framer-motion";
@@ -58,6 +58,8 @@ export default function CashierPOS() {
   // Popup state
   const [showPopup, setShowPopup] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  //order data in order with qr tap
+  const [orderDataDetails, setOrderData] = useState<any>(null)
 
   const [step, setStep] = useState("select"); // select | cash | processing | success
   const [paidAmount, setPaidAmount] = useState("");
@@ -88,7 +90,7 @@ export default function CashierPOS() {
   const { data: store, isLoading: storeLoading, error: storeError } = useQuery({
     queryKey: ['/stores', userStoreSlug],
     queryFn: () => getStoreBySlug(userStoreSlug),
-    enabled: !!userStoreSlug, 
+    enabled: !!userStoreSlug,
   });
   //Fetch cart data
   const { data: cartApi, isLoading: cartLoading, error: carError } = useQuery({
@@ -114,7 +116,7 @@ export default function CashierPOS() {
   // Fetch products by barcode
   const handleProcessOrder2 = () => {
     if (!paymentMethod) return;
-   
+
     if (paymentMethod === "cash") {
       setStep("cash");
     } else if (paymentMethod === "visa") {
@@ -123,7 +125,7 @@ export default function CashierPOS() {
       setTimeout(() => {
         setStep("success");
       }, 2000);
-    } else if (step === "cash"){
+    } else if (step === "cash") {
       setStep("success");
     }
   };
@@ -145,7 +147,7 @@ export default function CashierPOS() {
         "product_id": data.product.id,
         "quantity": 1,
         "latitude": storeLatitude,
-      "longitude": storeLongitude,
+        "longitude": storeLongitude,
         "notes": data.product.description
       }
       console.log("Product data that will add in cart", productDate)
@@ -278,6 +280,30 @@ export default function CashierPOS() {
     }
   };
 
+  // mutation to get order by ord
+  const getOrderMutation = useMutation({
+    mutationFn: (ord: string) => getOrderByOrd(ord),
+
+    onSuccess: (orderData) => {
+      setOrderData(orderData.qr_decoded)
+      toast({
+        title: "تم جلب الطلب بنجاح",
+        description: `رقم الطلب: ${orderData?.order_number ?? "غير معروف"}`,
+      });
+
+      console.log("Order Data:", orderData);
+    },
+
+    onError: () => {
+      toast({
+        title: "خطأ",
+        description: "فشل في جلب بيانات الطلب",
+        variant: "destructive",
+      });
+    },
+  });
+
+
   // Handle barcode scanning
   const handleBarcodeSubmit = () => {
     if (!barcodeInput.trim()) return;
@@ -303,6 +329,7 @@ export default function CashierPOS() {
       if (activeTab === "pos") {
         setIsScanning(true);
 
+
         // ✅ Correct payload for your backend
         const payload = {
           barcode: input,
@@ -314,6 +341,11 @@ export default function CashierPOS() {
 
         // ✅ Fixed mutation call to send payload properly
         findProductMutation.mutate(payload);
+      } else if (activeTab === "customer-orders") {
+        if (input.startsWith("ORD")) {
+          getOrderMutation.mutate(input);
+
+        }
       }
       // Handle QR verification scanning
       else if (activeTab === "qr-verification" && currentOrder) {
@@ -364,7 +396,7 @@ export default function CashierPOS() {
   });
 
 
-  
+
   // ✅ ميوتشيشن لتأكيد الدفع بالكاش
   const validateCashMutation = useMutation({
     mutationFn: validateCashPayment,
@@ -394,23 +426,23 @@ export default function CashierPOS() {
     },
   });
 
-//   // 🧠 لما المستخدم يضغط على الدفع
-//   const handlePayment = () => {
-//     checkoutMutation.mutate();
-//   };
+  //   // 🧠 لما المستخدم يضغط على الدفع
+  //   const handlePayment = () => {
+  //     checkoutMutation.mutate();
+  //   };
 
-//   return (
-//     <button
-//       onClick={handlePayment}
-//       disabled={checkoutMutation.isLoading || validateCashMutation.isLoading}
-//       className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-//     >
-//       {checkoutMutation.isLoading || validateCashMutation.isLoading
-//         ? "جارٍ المعالجة..."
-//         : "ادفع الآن"}
-//     </button>
-//   );
-// }
+  //   return (
+  //     <button
+  //       onClick={handlePayment}
+  //       disabled={checkoutMutation.isLoading || validateCashMutation.isLoading}
+  //       className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+  //     >
+  //       {checkoutMutation.isLoading || validateCashMutation.isLoading
+  //         ? "جارٍ المعالجة..."
+  //         : "ادفع الآن"}
+  //     </button>
+  //   );
+  // }
 
   const handlePayment = async () => {
     try {
@@ -508,33 +540,48 @@ export default function CashierPOS() {
 
 
 
-  const updateQuantity = (id: number, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      removeFromCart(id);
+  const updateQuantity = (
+    cartItemId: number,
+    productId: number,
+    newQuantity: number
+  ) => {
 
-      const itemId = id;
-      console.log("Item id to delete with update", itemId)
-      removeProductMutation.mutate(itemId);
+    if (newQuantity <= 0) {
+      removeFromCart(cartItemId);
+
+      console.log("Deleting cart item:", cartItemId);
+
+      removeProductMutation.mutate(cartItemId);
       return;
     }
+
     const editedData = {
-      "product_id": id,
-      "quantity": newQuantity,
-      "notes": "Need them ASAP"
-    }
-    console.log("Updated data", editedData)
-    const productId = id
-    updateCartMutation.mutate({ productId, editedData });
+      product_id: productId,   // ده جوه البودي
+      quantity: newQuantity,
+      notes: "Need them ASAP"
+    };
 
-    setCart(prev => prev.map(item =>
-      item.id === id ? { ...item, quantity: newQuantity } : item
+    console.log("Edited data:", editedData);
 
-    ));
+    updateCartMutation.mutate({
+      cartItemId,  // ده اللي هيتبعت في الريكوست
+      editedData
+    });
+
+    // تحديث الواجهة
+    setCart(prev =>
+      prev.map(item =>
+        item.cart_item_id === cartItemId
+          ? { ...item, quantity: newQuantity }
+          : item
+      )
+    );
   };
+
 
   const removeFromCart = (id: number) => {
     setCart(prev => prev.filter(item => item.id !== id));
-    
+
     removeProductMutation.mutate(id);
 
 
@@ -576,8 +623,8 @@ export default function CashierPOS() {
   };
   //Update item in cart
   const updateCartMutation = useMutation({
-    mutationFn: ({ productId, editedData }: { productId: number; editedData: object }) =>
-      updateCartItem(productId, editedData),
+    mutationFn: ({ cartItemId, editedData }: { cartItemId: number; editedData: any }) =>
+      updateCartItem(cartItemId, editedData),
     onSuccess: (data) => {
       toast({
         title: "تم التحديث",
@@ -925,7 +972,8 @@ export default function CashierPOS() {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => updateQuantity(item.cart_item_id, item.quantity - 1)}
+                                        onClick={() => updateQuantity(item.cart_item_id, item.product_id, item.quantity - 1)}
+
                                       >
                                         <Minus className="h-3 w-3" />
                                       </Button>
@@ -935,7 +983,9 @@ export default function CashierPOS() {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => updateQuantity(item.cart_item_id, item.quantity + 1)}
+                                        onClick={() => updateQuantity(item.cart_item_id, item.product_id, item.quantity + 1)}
+
+
                                       >
                                         <Plus className="h-3 w-3" />
                                       </Button>
@@ -1062,20 +1112,28 @@ export default function CashierPOS() {
                       </CardHeader>
                       <CardContent>
                         <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            className="flex items-center gap-2 text-sm whitespace-nowrap"
-                          >
-                            <Plus className="h-4 w-4" />
-                            إضافة عميل
-                          </Button>
                           <Input
-                            placeholder="امسح باركود المنتج"
+                            placeholder="امسح باركود المنتج..."
+                            value={barcodeInput}
+                            onChange={(e) => setBarcodeInput(e.target.value)}
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                handleBarcodeSubmit();
+                              }
+                            }}
                             className="flex-1 text-lg p-4"
+                            disabled={isScanning}
                           />
-                          <Button className="px-8 bg-green-600 hover:bg-green-700">
-                            <ScanBarcode className="h-5 w-5 ml-2" />
-                            مسح
+                          <Button
+                            onClick={handleBarcodeSubmit}
+                            disabled={isScanning || !barcodeInput.trim()}
+                            className="px-6"
+                          >
+                            {isScanning ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <ScanBarcode className="h-4 w-4" />
+                            )}
                           </Button>
                         </div>
                       </CardContent>
@@ -1085,101 +1143,94 @@ export default function CashierPOS() {
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-xl">سلة التسوق</CardTitle>
+
                           <Badge variant="secondary" className="text-base px-4 py-1">
-                            3 منتج
+                            {orderDataDetails?.summary?.total_items ?? 0} منتج
                           </Badge>
                         </div>
                       </CardHeader>
+
                       <CardContent className="space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg border">
-                          <div className="flex items-center gap-4 flex-1">
-                            <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-md flex items-center justify-center overflow-hidden">
-                              <Package className="h-8 w-8 text-gray-400" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-medium text-gray-900 dark:text-white mb-1">
-                                قهوة عربية فاخرة 50 جرام
-                              </h4>
-                              <p className="text-sm text-gray-500">
-                                الباركود: 8901234567890
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-md p-1">
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                              <span className="font-medium w-8 text-center">2</span>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <Minus className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <div className="text-right min-w-[80px]">
-                              <div className="flex flex-row items-center gap-1 w-[41px] h-[24px] justify-center">
-                                <p className="text-green-600 dark:text-green-400 font-bold text-lg">
-                                  5
-                                </p>
-                                <SixPointsIcon />
+                        {orderDataDetails?.items?.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg border"
+                          >
+                            {/* اليسار */}
+                            <div className="flex items-center gap-4 flex-1">
+                              {/* الصورة */}
+                              <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-md flex items-center justify-center overflow-hidden">
+                                {item.image_url ? (
+                                  <img
+                                    src={item.image_url}
+                                    alt={item.product_name}
+                                    className="object-cover w-full h-full"
+                                  />
+                                ) : (
+                                  <Package className="h-8 w-8 text-gray-400" />
+                                )}
                               </div>
-                              <p className="font-bold text-base">91.00 ر.س</p>
-                            </div>
-                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">
-                              <Trash2 className="h-5 w-5" />
-                            </Button>
-                          </div>
-                        </div>
 
-                        <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg border">
-                          <div className="flex items-center gap-4 flex-1">
-                            <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-md flex items-center justify-center overflow-hidden">
-                              <Package className="h-8 w-8 text-gray-400" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-medium text-gray-900 dark:text-white mb-1">
-                                شوكولاتة داكنة 25 جرام
-                              </h4>
-                              <p className="text-sm text-gray-500">
-                                الباركود: 8901234567892
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-md p-1">
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                              <span className="font-medium w-8 text-center">1</span>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <Minus className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <div className="text-right min-w-[80px]">
-                              <div className="flex flex-row items-center gap-1 w-[41px] h-[24px] justify-center">
-                                <p className="text-green-600 dark:text-green-400 font-bold text-lg">
-                                  2
-                                </p>
-                                <SixPointsIcon />
+                              {/* اسم المنتج + الباركود */}
+                              <div className="flex-1">
+                                <h4 className="font-medium text-gray-900 dark:text-white mb-1">
+                                  {item.product_name}
+                                </h4>
+                                <p className="text-sm text-gray-500">الباركود: {item.barcode}</p>
                               </div>
-                              <p className="font-bold text-base">47.25 ر.س</p>
                             </div>
-                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">
-                              <Trash2 className="h-5 w-5" />
-                            </Button>
-                          </div>
-                        </div>
 
+                            {/* Controls Right */}
+                            <div className="flex items-center gap-4">
+                              {/* الكوانتيتي */}
+                              <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-md p-1">
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+
+                                <span className="font-medium w-8 text-center">{item.quantity}</span>
+
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+                              </div>
+
+                              {/* النقاط والسعر */}
+                              <div className="text-right min-w-[80px]">
+                                <div className="flex flex-row items-center gap-1 w-[41px] h-[24px] justify-center">
+                                  <p className="text-green-600 dark:text-green-400 font-bold text-lg">
+                                    {item.loyalty_points_earned}
+                                  </p>
+                                  <SixPointsIcon />
+                                </div>
+
+                                <p className="font-bold text-base">
+                                  {item.line_subtotal} ر.س
+                                </p>
+                              </div>
+
+                              {/* زرار الحذف */}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-5 w-5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* كود خصم */}
                         <div className="flex gap-2 pt-4 border-t">
-                          <Input
-                            placeholder="كود الخصم أو البروموكود"
-                            className="flex-1"
-                          />
+                          <Input placeholder="كود الخصم أو البروموكود" className="flex-1" />
                           <Button variant="outline" className="px-6">
                             إلغاء
                           </Button>
                         </div>
                       </CardContent>
                     </Card>
+
                   </div>
 
                   <div className="space-y-6">
@@ -1557,48 +1608,48 @@ export default function CashierPOS() {
                       exit={{ opacity: 0, scale: 0.9 }}
                       transition={{ duration: 0.25 }}
                     >
-                      {step === "select"  && (
+                      {step === "select" && (
                         <>
-                      <h2 className="text-xl font-semibold mb-1">اختر وسيلة الدفع</h2>
-                      <p className="text-gray-500 mb-4 text-sm">
-                        اختر طريقة الدفع المناسبة لإتمام العملية
-                      </p>
+                          <h2 className="text-xl font-semibold mb-1">اختر وسيلة الدفع</h2>
+                          <p className="text-gray-500 mb-4 text-sm">
+                            اختر طريقة الدفع المناسبة لإتمام العملية
+                          </p>
 
-                      <div className="space-y-3">
-                        {/* نقدي */}
-                        <label className="flex items-center justify-between border rounded-lg px-4 py-3 cursor-pointer hover:border-primary transition">
-                          <input
-                            type="radio"
-                            name="payment"
-                            value="cash"
-                            checked={paymentMethod === "cash"}
-                            onChange={() => setPaymentMethod("cash")}
-                            className="accent-primary"
-                            />
-                          <div className="flex items-center gap-2">
-                            <Wallet size={18} />
-                            <span className="font-medium">نقدي</span>
-                          </div>
-                        </label>
+                          <div className="space-y-3">
+                            {/* نقدي */}
+                            <label className="flex items-center justify-between border rounded-lg px-4 py-3 cursor-pointer hover:border-primary transition">
+                              <input
+                                type="radio"
+                                name="payment"
+                                value="cash"
+                                checked={paymentMethod === "cash"}
+                                onChange={() => setPaymentMethod("cash")}
+                                className="accent-primary"
+                              />
+                              <div className="flex items-center gap-2">
+                                <Wallet size={18} />
+                                <span className="font-medium">نقدي</span>
+                              </div>
+                            </label>
 
-                        {/* بطاقة ائتمانية */}
-                        <label className="flex items-center justify-between border rounded-lg px-4 py-3 cursor-pointer hover:border-primary transition">
-                          <input
-                            type="radio"
-                            name="payment"
-                            value="visa"
-                            checked={paymentMethod === "visa"}
-                            onChange={() => setPaymentMethod("visa")}
-                            className="accent-primary"
-                            />
-                          <div className="flex items-center gap-2">
-                            <CreditCard size={18} />
-                            <span className="font-medium">بطاقة ائتمانية</span>
+                            {/* بطاقة ائتمانية */}
+                            <label className="flex items-center justify-between border rounded-lg px-4 py-3 cursor-pointer hover:border-primary transition">
+                              <input
+                                type="radio"
+                                name="payment"
+                                value="visa"
+                                checked={paymentMethod === "visa"}
+                                onChange={() => setPaymentMethod("visa")}
+                                className="accent-primary"
+                              />
+                              <div className="flex items-center gap-2">
+                                <CreditCard size={18} />
+                                <span className="font-medium">بطاقة ائتمانية</span>
+                              </div>
+                            </label>
                           </div>
-                        </label>
-                      </div>
-                            </>
-                          )}
+                        </>
+                      )}
 
                       {/* الأزرار */}
                       {step === "select" && (
@@ -1622,7 +1673,7 @@ export default function CashierPOS() {
 
                       {step === "cash" && (
                         <>
-                        
+
                           <h2 className="text-xl font-semibold mb-1">إتمام الدفع النقدي</h2>
                           <p className="text-gray-500 mb-4 text-sm">أدخل المبلغ المدفوع</p>
 
@@ -1675,7 +1726,7 @@ export default function CashierPOS() {
                           >
                             إلغاء
                           </button>
-                          </div>
+                        </div>
                       )} {step === "success" && (
                         <div className="flex flex-col items-center justify-center py-8 space-y-3">
                           <div className="bg-green-100 rounded-full p-3">
@@ -1698,7 +1749,7 @@ export default function CashierPOS() {
                               إلغاء
                             </button>
                             <button
-                              onClick={ handleProcessOrder}
+                              onClick={handleProcessOrder}
                               className="bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg transition"
                             >
                               إصدار الفاتورة

@@ -176,7 +176,7 @@ export const getOrderById = async (orderId : number) => {
     throw error;
   }
 }
-export const getOrderByOrd = async (ord : number) => {
+export const getOrderByOrd = async (ord : string) => {
   try{
     const response = await api.get(`orders/order/${ord}/qr-debug/`);
     console.log("get order with ORD number Successfully",response.data)

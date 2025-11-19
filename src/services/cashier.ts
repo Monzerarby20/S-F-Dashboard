@@ -167,7 +167,7 @@ export const completeQROrder = async (qrOrderId: number) => {
 
 export const getOrderById = async (orderId : number) => {
   try{
-    const response = await api.get(`orders/order/${orderId}/qrdebug/`);
+    const response = await api.get(`orders/order/${orderId}/qr-debug/`);
     console.log("get order with id Successfully",response.data)
     return response.data;
 
@@ -178,7 +178,7 @@ export const getOrderById = async (orderId : number) => {
 }
 export const getOrderByOrd = async (ord : number) => {
   try{
-    const response = await api.get(`orders/order/${ord}/qrdebug/`);
+    const response = await api.get(`orders/order/${ord}/qr-debug/`);
     console.log("get order with ORD number Successfully",response.data)
     return response.data;
 

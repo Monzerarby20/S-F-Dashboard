@@ -14,7 +14,6 @@ import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import axios from "axios";
 import { getCategories, getStores } from "@/services/products";
-import { getStoreBySlug } from "@/services/stores";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -23,93 +22,79 @@ export default function ProductFormNew() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
-  const [userStoreSlug, setUserStoreSlug] = useState<string>("")
 
   // Check if user is admin/superuser
-  const role = (user as any)?.role_display?.toLowerCase();
-
-  const isAdmin = !!(
-    (user as any)?.is_superuser ||
-    (user as any)?.is_staff ||
-    ['admin', 'superuser', 'owner'].includes(role)
-  );
-
-
-  console.log("User data", user)
+  const isAdmin = (user as any)?.is_superuser || 
+                  (user as any)?.role === 'admin' || 
+                  (user as any)?.role === 'superuser' ||
+                  (user as any)?.role === 'owner' ||
+                  (user as any)?.is_staff;
+  
   // Get store_id from current user
-  const userStoreId = (user as any)?.store_id || (user as any)?.store || null;
-
+  const userStoreId = (user as any)?.store_id || (user as any)?.store || '13';
+  
   // Selected store state (Admin can change it, regular user uses their store)
-  const [selectedStore, setSelectedStore] = useState<string | null>(null);
-
-
+  const [selectedStore, setSelectedStore] = useState<string>("");
+  
   console.log('👤 Is Admin:', isAdmin);
   console.log('🏪 User Store ID:', userStoreId);
   console.log('🏪 Selected Store:', selectedStore);
-
+  
   // Fetch stores
   const { data: storesData, isLoading: storesLoading } = useQuery({
     queryKey: ['stores'],
     queryFn: () => getStores(),
     enabled: !!user,
   });
-
+  
   const stores = storesData?.results || storesData || [];
-  // //Get use store by slug
-  // if(!isAdmin || userStoreId == null){
-  //   setUserStoreSlug(localStorage.getItem('userSlug'))
-  //   const {data: userStoreData,isLoading: userStoreLoading} = useQuery({
-  //     queryKey:['store'],
-  //     queryFn:() => getStoreBySlug(userStoreSlug),
-  //     enabled: !!user,
-  //   })
-
-  // }
+  
   // Set default selected store when stores load
   useEffect(() => {
-    if (!selectedStore && stores.length > 0) {
+    if (stores.length > 0 && !selectedStore) {
+      // If admin, don't select by default (let them choose)
+      // If regular user, select their store
       if (!isAdmin && userStoreId) {
         setSelectedStore(userStoreId.toString());
       }
     }
   }, [stores, selectedStore, isAdmin, userStoreId]);
-
+  
   console.log('🏬 Stores count:', stores.length);
-
+  
   // Fetch ALL categories (including global) without store filter
   const { data: allCategoriesData, isLoading: allCategoriesLoading } = useQuery({
     queryKey: ['all-categories'],
     queryFn: () => getCategories(), // No store_id = get all including global
     enabled: !!user,
   });
-
+  
   // Fetch categories for selected store
-  const { data: storeCategoriesData } = useQuery({
+  const { data: storeCategoriesData, isLoading: storeCategoriesLoading } = useQuery({
     queryKey: ['store-categories', selectedStore],
-    queryFn: () => getCategories(selectedStore as string),
-    enabled: !!user && !!selectedStore, // فقط بعد تحديد الـ store
+    queryFn: () => getCategories(selectedStore),
+    enabled: !!user && !!selectedStore,
   });
-
-  const categoriesLoading = allCategoriesLoading || storesLoading;
-
+  
+  const categoriesLoading = allCategoriesLoading || storeCategoriesLoading;
+  
   // Get all categories and filter global ones
   const allCategories = allCategoriesData?.results || [];
   const globalCategoriesOnly = allCategories.filter((cat: any) => cat.parent === null);
-
+  
   // Get store categories
   const storeCategories = storeCategoriesData?.results || [];
-
+  
   // Merge: Global + Store categories (remove duplicates)
-  const categories = selectedStore
+  const categories = selectedStore 
     ? [...globalCategoriesOnly, ...storeCategories.filter((cat: any) => cat.parent !== null)]
-    : [...globalCategoriesOnly]; // لو admin وما اختاروا store بعد
-
-
+    : [];
+  
   // Separate global and store-specific categories
   const globalCategories = categories.filter((cat: any) => cat.parent === null);
   const storeCategoriesFiltered = categories.filter((cat: any) => cat.parent !== null);
   const hasOnlyGlobal = categories.length > 0 && storeCategoriesFiltered.length === 0;
-
+  
   console.log('✅ Total Categories:', categories.length);
   console.log('🌐 Global Categories:', globalCategories.length);
   console.log('🏪 Store Categories:', storeCategoriesFiltered.length);
@@ -128,7 +113,7 @@ export default function ProductFormNew() {
   const [newImageAlt, setNewImageAlt] = useState("");
   const [newImageType, setNewImageType] = useState("product");
   const [newImagePrimary, setNewImagePrimary] = useState(false);
-
+  
   console.log('🖼️ Images count:', images.length);
 
   const [formData, setFormData] = useState({
@@ -161,7 +146,7 @@ export default function ProductFormNew() {
   const createProductMutation = useMutation({
     mutationFn: async (data: any) => {
       const token = localStorage.getItem('token');
-
+      
       // Prepare payload
       const payload: any = {
         name: data.name,
@@ -184,7 +169,7 @@ export default function ProductFormNew() {
       if (data.dimensions) payload.dimensions = data.dimensions;
       if (data.loyalty_points) payload.loyalty_points = parseInt(data.loyalty_points);
       if (data.expiry_date) payload.expiry_date = data.expiry_date;
-
+      
       // Boolean fields
       payload.is_featured = data.is_featured;
       payload.is_active = data.is_active;
@@ -233,12 +218,12 @@ export default function ProductFormNew() {
       console.error('❌ Error Data:', error.response?.data);
       console.error('❌ Error Status:', error.response?.status);
       console.error('❌ Error Message:', error.message);
-
-      const errorMessage = error.response?.data?.detail ||
-        error.response?.data?.message ||
-        JSON.stringify(error.response?.data) ||
-        "فشل في إنشاء المنتج";
-
+      
+      const errorMessage = error.response?.data?.detail || 
+                          error.response?.data?.message || 
+                          JSON.stringify(error.response?.data) || 
+                          "فشل في إنشاء المنتج";
+      
       toast({
         title: "خطأ",
         description: errorMessage,
@@ -270,10 +255,10 @@ export default function ProductFormNew() {
   return (
     <div className="min-h-screen flex" dir="rtl">
       <Sidebar />
-
+      
       <main className="flex-1 overflow-hidden">
         <TopBar />
-
+        
         <div className="p-6 overflow-y-auto h-full custom-scrollbar">
           <div className="max-w-4xl mx-auto">
             {/* Header */}
@@ -330,8 +315,8 @@ export default function ProductFormNew() {
                     {storesLoading ? (
                       <Input value="جاري التحميل..." disabled />
                     ) : isAdmin ? (
-                      <Select
-                        value={selectedStore || undefined}
+                      <Select 
+                        value={selectedStore} 
                         onValueChange={setSelectedStore}
                         required
                       >
@@ -343,7 +328,7 @@ export default function ProductFormNew() {
                             <SelectItem key={store.id} value={store.id.toString()}>
                               <div className="flex items-center justify-between w-full">
                                 <span>{store.name}</span>
-                                {store.id.toString() === userStoreId?.toString() && (
+                                {store.id.toString() === userStoreId.toString() && (
                                   <span className="text-xs text-green-600 font-semibold">👤 متجرك</span>
                                 )}
                               </div>
@@ -352,7 +337,7 @@ export default function ProductFormNew() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Input
+                      <Input 
                         value={stores.find((s: any) => s.id.toString() === selectedStore)?.name || 'متجرك'}
                         disabled
                       />
@@ -365,18 +350,18 @@ export default function ProductFormNew() {
                         القسم <span className="text-red-500">*</span>
                       </label>
                       {!selectedStore ? (
-                        <Input
-                          value="اختر متجر أولاً"
-                          disabled
+                        <Input 
+                          value="اختر متجر أولاً" 
+                          disabled 
                           className="bg-gray-100 dark:bg-gray-800 text-gray-500"
                         />
                       ) : categoriesLoading ? (
                         <Input value="جاري التحميل..." disabled />
                       ) : (
                         <div>
-                          <Select
-                            value={formData.category}
-                            onValueChange={(value) => setFormData({ ...formData, category: value })}
+                          <Select 
+                            value={formData.category} 
+                            onValueChange={(value) => setFormData({...formData, category: value})}
                             required
                           >
                             <SelectTrigger>
@@ -532,8 +517,8 @@ export default function ProductFormNew() {
                         placeholder="وصف الصورة"
                       />
                       <div className="flex items-center gap-3">
-                        <Select
-                          value={newImageType}
+                        <Select 
+                          value={newImageType} 
                           onValueChange={setNewImageType}
                         >
                           <SelectTrigger className="w-full">
@@ -566,7 +551,7 @@ export default function ProductFormNew() {
                         console.log('Current Type:', newImageType);
                         console.log('Current Primary:', newImagePrimary);
                         console.log('Current Images Array:', images);
-
+                        
                         if (newImageUrl.trim()) {
                           const newImage = {
                             image_url: newImageUrl,
@@ -577,7 +562,7 @@ export default function ProductFormNew() {
                           console.log('✅ Adding new image:', newImage);
                           setImages([...images, newImage]);
                           console.log('📦 Updated images array:', [...images, newImage]);
-
+                          
                           // Reset form
                           setNewImageUrl("");
                           setNewImageAlt("");
@@ -697,7 +682,7 @@ export default function ProductFormNew() {
                         type="checkbox"
                         id="is_featured"
                         checked={formData.is_featured}
-                        onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
+                        onChange={(e) => setFormData({...formData, is_featured: e.target.checked})}
                         className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
                       />
                       <label htmlFor="is_featured" className="text-sm font-medium">
@@ -710,7 +695,7 @@ export default function ProductFormNew() {
                         type="checkbox"
                         id="is_active"
                         checked={formData.is_active}
-                        onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                        onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
                         className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
                       />
                       <label htmlFor="is_active" className="text-sm font-medium">
@@ -793,8 +778,8 @@ export default function ProductFormNew() {
                 <Button type="button" onClick={handleCancel} variant="outline">
                   إلغاء
                 </Button>
-                <Button
-                  type="submit"
+                <Button 
+                  type="submit" 
                   className="bg-primary hover:bg-primary/90"
                   disabled={createProductMutation.isPending}
                 >

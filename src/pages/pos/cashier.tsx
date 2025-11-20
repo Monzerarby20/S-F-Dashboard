@@ -960,7 +960,7 @@ export default function CashierPOS() {
                                     {/* ✅ Loyalty Points */}
                                     {item.loyalty_points_per_item !== undefined && (
                                       <div className="flex items-center gap-1 mt-1 text-green-600 dark:text-green-400 text-sm">
-                                        <span>🌿</span>
+                                        <span><SixPointsIcon/></span>
                                         <span>{item.loyalty_points_per_item} نقاط</span>
                                       </div>
                                     )}
@@ -972,6 +972,8 @@ export default function CashierPOS() {
                                       <Button
                                         variant="outline"
                                         size="sm"
+                                        className="border border-red-500 text-red-500 bg-white hover:bg-red-500 hover:text-white transition-all duration-200 rounded-full w-8 h-8 flex items-center justify-center"
+
                                         onClick={() => updateQuantity(item.cart_item_id, item.product_id, item.quantity - 1)}
 
                                       >
@@ -982,6 +984,8 @@ export default function CashierPOS() {
                                       </span>
                                       <Button
                                         variant="outline"
+                                        className="border border-[#038203] text-[#038203] bg-white hover:bg-[#038203] hover:text-white transition-all duration-200 rounded-full w-8 h-8 flex items-center justify-center"
+
                                         size="sm"
                                         onClick={() => updateQuantity(item.cart_item_id, item.product_id, item.quantity + 1)}
 
@@ -999,6 +1003,7 @@ export default function CashierPOS() {
 
                                     <Button
                                       variant="destructive"
+                                      className="text-red-500 bg-white hover:bg-red-500 hover:text-white transition-all duration-200 w-8 h-8 flex items-center justify-center rounded-full"
                                       size="sm"
                                       onClick={() => removeFromCart(item.cart_item_id)}
                                     >

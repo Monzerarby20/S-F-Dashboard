@@ -112,19 +112,15 @@ export default function CashierPOS() {
     console.log("fetched current store", store);
   }, [store]);
   
-  const total =
-    activeTab === "pos"
-      ? cartSummary?.total_amount
-      : orderDataDetails?.qr_decoded?.totals?.grand_total;
   const storeLatitude = store?.latitude ?? null;
   const storeLongitude = store?.longitude ?? null;
   console.log("fetched current store", store)
-
+  
   console.log(storeLatitude, storeLongitude)
   // Fetch products by barcode
   const handleProcessOrder2 = () => {
     if (!paymentMethod) return;
-
+    
     if (paymentMethod === "cash") {
       setStep("cash");
     } else if (paymentMethod === "visa") {
@@ -137,20 +133,20 @@ export default function CashierPOS() {
       setStep("success");
     }
   };
-
+  
   const findProductMutation = useMutation({
     mutationFn: async (payload) => {
       console.log("➡️ Mutation started with:", payload);
       const response = await getProductByBartcode(payload);
       console.log("✅ Product fetched:", response);
-
+      
       return response;
     },
     onSuccess: (data) => {
       const product = data.product;
       console.log("🎉 onSuccess fired:", product);
       addToCart(product);
-
+      
       const productDate = {
         "product_id": data.product.id,
         "quantity": 1,
@@ -178,13 +174,13 @@ export default function CashierPOS() {
       });
     },
   });
-
+  
   //Empty cart
   const emptyCartMutation = useMutation({
     mutationFn: emptyCart,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
-
+      
       toast({
         title: "تم مسح السلة",
         description: "تم تفريغ جميع المنتجات من السلة",
@@ -201,7 +197,7 @@ export default function CashierPOS() {
       console.error("❌ Error clearing cart:", error);
     },
   });
-
+  
   const addToCartMutation = useMutation({
     mutationFn: addToCartApi,
     onSuccess: (data) => {
@@ -212,7 +208,7 @@ export default function CashierPOS() {
       console.log("✅ Added to cart:", data);
       queryClient.invalidateQueries({ queryKey: ["cartApi"] });
       queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
-
+      
     },
     onError: (error) => {
       toast({
@@ -223,8 +219,8 @@ export default function CashierPOS() {
       console.error("❌ Error adding to cart:", error);
     },
   });
-
-
+  
+  
   // Remove Product
   const removeProductMutation = useMutation({
     mutationFn: removeProduct,
@@ -236,7 +232,7 @@ export default function CashierPOS() {
       console.log("🗑️ Product removed:", data);
       queryClient.invalidateQueries({ queryKey: ["cartApi"] });
       queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
-
+      
     },
     onError: (error) => {
       toast({
@@ -247,38 +243,38 @@ export default function CashierPOS() {
       console.error("❌ Error removing product:", error);
     },
   });
-
+  
   // Process order mutation
   const processOrderMutation = useMutation({
     mutationFn: checkoutProcess,
-
+    
     onSuccess: (data) => {
-
+      
       console.log("Created Order:", data);
-
+      
       // نجيب الاوردر نمبر مباشرة بدون استخدام ستايت
       const newOrderNumber = data.order_number;
-
+      
       // نعمل verify فورا مباشرة بعد الإنشاء
       verifyOrderMutation.mutate({
         order_number: newOrderNumber,
         paid_amount: paidAmount,
         confirm: true
       });
-
+      
       // لو محتاج تخزنها للواجهة فقط
       setOrdValue(newOrderNumber);
-
+      
       setIsOrderDone(true);
       clearCart();
       setSelectedCustomer(null);
-
+      
       toast({
         title: "تم إتمام البيع",
         description: "تم حفظ الطلب وتم تأكيده",
       });
     },
-
+    
     onError: () => {
       toast({
         title: "خطأ",
@@ -287,7 +283,7 @@ export default function CashierPOS() {
       });
     }
   });
-
+  
   useEffect(() => {
     console.log("🔥 ordValue UPDATED:", ordValue);
   }, [ordValue]);
@@ -306,11 +302,11 @@ export default function CashierPOS() {
       setStep("success"); // لو تمام، يروح لشاشة النجاح
     }
   };
-
+  
   // mutation to get order by ord
   const getOrderMutation = useMutation({
     mutationFn: (ord: string) => getOrderByOrd(ord),
-
+    
     onSuccess: (orderData) => {
       setOrderData(orderData.qr_decoded)
       setOrderState(true)
@@ -320,10 +316,10 @@ export default function CashierPOS() {
         title: "تم جلب الطلب بنجاح",
         description: `رقم الطلب: ${orderData?.order_number ?? "غير معروف"}`,
       });
-
+      
       console.log("Order Data:", orderData);
     },
-
+    
     onError: () => {
       toast({
         title: "خطأ",
@@ -332,14 +328,14 @@ export default function CashierPOS() {
       });
     },
   });
-
-
-
+  
+  
+  
   //verify order mutation
   // mutation to verify order
   const verifyOrderMutation = useMutation({
     mutationFn: (data: object) => verifyOrder(data),
-
+    
     onSuccess: (res) => {
       setOrderData(null)
       setShowPopup(false)
@@ -350,20 +346,21 @@ export default function CashierPOS() {
         title: "تم التحقق من الدفع بنجاح",
         description: "تم التأكيد على الطلب.",
       });
-
+      
       console.log("Verify Order Response:", res);
     },
-
+    
     onError: (error) => {
       toast({
         title: "خطأ",
         description: "فشل في التحقق من الطلب",
         variant: "destructive",
       });
-
+      
       console.log("Verify Order Error:", error);
     },
   });
+  
 
 
   //remove order 
@@ -665,7 +662,10 @@ export default function CashierPOS() {
   const calculateTotal = () => {
     return cartSummary.reduce((total, item) => total + (item.unit_price * item.quantity), 0);
   };
-
+  const total =
+  activeTab === "pos"
+    ? (calculateTotal() * 1.15)
+    : orderDataDetails?.qr_decoded?.totals?.grand_total;
   const handleProcessOrder = () => {
     console.log("I'm here in handleprocessorder")
 

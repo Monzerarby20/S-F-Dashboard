@@ -6,13 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Trash2, RotateCcw, Scan, Clock, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { Trash2, RotateCcw, Scan, Clock, CheckCircle, XCircle, AlertTriangle, ScanBarcode } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
+import { lookupInvoice } from "@/services/return";
 
 interface ReturnOrder {
   id: number;
@@ -64,14 +65,7 @@ export default function ReturnsPage() {
 
   // Fetch return order by barcode
   const fetchReturnOrderMutation = useMutation({
-    mutationFn: async (barcode: string) => {
-      const response = await apiRequest('GET', `/api/returns/scan/${barcode}`);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'فشل في جلب بيانات الاسترجاع');
-      }
-      return response.json();
-    },
+    mutationFn: lookupInvoice,
     onSuccess: (data: ReturnOrder) => {
       setCurrentReturn(data);
       toast({
@@ -192,9 +186,9 @@ export default function ReturnsPage() {
   return (
     <PageLayout>
       <PageHeader
-        title="إدارة الاسترجاع"
-        description="استرجاع المنتجات وإعادة الأموال للعملاء"
-        icon={<RotateCcw className="h-8 w-8" />}
+        title="انشاء استرجاع / استبدال"
+        subtitle="يمكنك اختيار المنتجات التي تريد استرجاعها أو استبدالها"
+        
       />
 
       <div className="space-y-6">
@@ -214,13 +208,14 @@ export default function ReturnsPage() {
                   type="text"
                   placeholder={!currentReturn ? "امسح باركود الاسترجاع..." : "امسح باركود المنتج للاسترجاع..."}
                   value={scannerInput}
+                  
                   onChange={(e) => setScannerInput(e.target.value)}
                   className="flex-1 text-lg"
                   autoFocus
                 />
                 <Button type="submit" disabled={fetchReturnOrderMutation.isPending || processReturnMutation.isPending}>
-                  <Scan className="h-4 w-4 mr-2" />
-                  {!currentReturn ? "البحث" : "استرجاع"}
+                <ScanBarcode className="h-4 w-4" />
+                  {!currentReturn ? "مسح" : "استرجاع"}
                 </Button>
               </div>
             </form>

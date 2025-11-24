@@ -31,7 +31,7 @@ export default function ProductFormNew() {
                   (user as any)?.is_staff;
   
   // Get store_id from current user
-  const userStoreId = (user as any)?.store_id || (user as any)?.store || '13';
+  const userStoreId = (user as any)?.store_id || (user as any)?.store || '18';
   
   // Selected store state (Admin can change it, regular user uses their store)
   const [selectedStore, setSelectedStore] = useState<string>("");

@@ -41,14 +41,16 @@ export default function ReturnsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const scannerInputRef = useRef<HTMLInputElement>(null);
-  
-  const [currentReturn, setCurrentReturn] = useState<ReturnOrder | null>(null);
+
+  const [currentReturn, setCurrentReturn] = useState<object | null>(null);
   const [scannerInput, setScannerInput] = useState("");
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     item?: ReturnOrderItem;
   }>({ open: false });
+  
+const [rmaType, setRmaType] = useState<'return' | 'replace'>('return');
 
   // Auto-focus scanner input
   useEffect(() => {
@@ -67,7 +69,29 @@ export default function ReturnsPage() {
   const fetchReturnOrderMutation = useMutation({
     mutationFn: lookupInvoice,
     onSuccess: (data: ReturnOrder) => {
-      setCurrentReturn(data);
+      const mapped: object = {
+        id: Date.now(), // أو لو السيرفر بيرجع ID حطه
+        qrCode: data.invoice_number,
+        returnBarcode: data.invoice_number,
+        customerName: data.customer_name,
+        customerPhone: null,
+        totalAmount: data.total_amount,
+        returnPolicy: null,
+        returnExpiryDate: null,
+
+        paymentMethod: data.payment_method,
+        items: data.items.map((item: any, index: number) => ({
+          id: index + 1,
+          productId: item.product_id,
+          productImage: item.product_image,
+          productName: item.product_name,
+          productBarcode: item.barcode,
+          originalPrice: item.unit_price,
+          quantity: item.quantity,
+          isReturned: false,
+        })),
+      };
+      setCurrentReturn(mapped);
       toast({
         title: "تم العثور على الطلب",
         description: `طلب العميل ${data.customerName || 'غير محدد'} جاهز للاسترجاع`,
@@ -95,17 +119,17 @@ export default function ReturnsPage() {
     onSuccess: (data) => {
       // Update current return data
       if (currentReturn) {
-        const updatedItems = currentReturn.items.map(item => 
+        const updatedItems = currentReturn.items.map(item =>
           item.id === data.itemId ? { ...item, isReturned: true } : item
         );
         setCurrentReturn({ ...currentReturn, items: updatedItems });
       }
-      
+
       toast({
         title: "تم الاسترجاع",
         description: `تم استرجاع ${data.productName} بنجاح`,
       });
-      
+
       setScannerInput("");
       setConfirmDialog({ open: false });
     },
@@ -124,13 +148,17 @@ export default function ReturnsPage() {
 
     // Check if scanning return barcode
     if (!currentReturn) {
-      fetchReturnOrderMutation.mutate(scannerInput.trim());
+      console.log("Request", scannerInput.trim())
+      const scannerInputRequest = {
+        invoice_number: scannerInput.trim()
+      }
+      fetchReturnOrderMutation.mutate(scannerInputRequest);
     } else {
       // Check if scanning product barcode
       const item = currentReturn.items.find(
         item => item.productBarcode === scannerInput.trim() && !item.isReturned
       );
-      
+
       if (item) {
         setConfirmDialog({ open: true, item });
       } else {
@@ -141,7 +169,7 @@ export default function ReturnsPage() {
         });
       }
     }
-    
+
     setScannerInput("");
   };
 
@@ -188,7 +216,7 @@ export default function ReturnsPage() {
       <PageHeader
         title="انشاء استرجاع / استبدال"
         subtitle="يمكنك اختيار المنتجات التي تريد استرجاعها أو استبدالها"
-        
+
       />
 
       <div className="space-y-6">
@@ -208,18 +236,18 @@ export default function ReturnsPage() {
                   type="text"
                   placeholder={!currentReturn ? "امسح باركود الاسترجاع..." : "امسح باركود المنتج للاسترجاع..."}
                   value={scannerInput}
-                  
+
                   onChange={(e) => setScannerInput(e.target.value)}
                   className="flex-1 text-lg"
                   autoFocus
                 />
                 <Button type="submit" disabled={fetchReturnOrderMutation.isPending || processReturnMutation.isPending}>
-                <ScanBarcode className="h-4 w-4" />
+                  <ScanBarcode className="h-4 w-4" />
                   {!currentReturn ? "مسح" : "استرجاع"}
                 </Button>
               </div>
             </form>
-            
+
             {currentReturn && (
               <div className="mt-4 flex gap-2">
                 <Button variant="outline" onClick={resetReturn}>
@@ -239,13 +267,13 @@ export default function ReturnsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>معلومات الطلب</span>
-                  <Badge 
+                  <Badge
                     variant={isReturnExpired(currentReturn.returnExpiryDate) ? "destructive" : "default"}
                     className="flex items-center gap-1"
                   >
                     <Clock className="h-3 w-3" />
-                    {isReturnExpired(currentReturn.returnExpiryDate) 
-                      ? "منتهي الصلاحية" 
+                    {isReturnExpired(currentReturn.returnExpiryDate)
+                      ? "منتهي الصلاحية"
                       : `${getRemainingDays(currentReturn.returnExpiryDate)} يوم متبقي`
                     }
                   </Badge>
@@ -264,8 +292,20 @@ export default function ReturnsPage() {
                     </div>
                   )}
                   <div className="flex justify-between">
+                    <span className="text-muted-foreground">رقم الفاتورة:</span>
+                    <span className="font-medium">{currentReturn.qrCode}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-muted-foreground">إجمالي الطلب:</span>
                     <span className="font-medium">{currentReturn.totalAmount.toFixed(2)} ر.س</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">وسيلة الدفع:</span>
+                    <span className="font-medium">{currentReturn.paymentMethod}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">وسيلة الدفع:</span>
+                    <span className="font-medium">Paid</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">المسترجع:</span>
@@ -296,7 +336,7 @@ export default function ReturnsPage() {
             {/* Return Progress */}
             <Card>
               <CardHeader>
-                <CardTitle>حالة الاسترجاع</CardTitle>
+                <CardTitle>ملخص العملية</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -316,9 +356,9 @@ export default function ReturnsPage() {
                       {currentReturn.items.length - getReturnedItemsCount()}
                     </Badge>
                   </div>
-                  
+
                   <Separator />
-                  
+
                   <div className="space-y-2">
                     <div className="flex justify-between font-medium">
                       <span>إجمالي المبلغ المسترجع:</span>
@@ -337,8 +377,9 @@ export default function ReturnsPage() {
         {currentReturn && (
           <Card>
             <CardHeader>
-              <CardTitle>منتجات الطلب</CardTitle>
+              <CardTitle>منتجات الطلب</CardTitle>  
             </CardHeader>
+            
             <CardContent>
               {currentReturn.items.length === 0 ? (
                 <EmptyState
@@ -351,15 +392,31 @@ export default function ReturnsPage() {
                   {currentReturn.items.map((item) => (
                     <div
                       key={item.id}
-                      className={`p-4 border rounded-lg transition-colors ${
-                        item.isReturned
-                          ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                          : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700'
-                      }`}
+                      className={`p-4 border rounded-lg transition-colors ${item.isReturned
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                        : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700'
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedItems.includes(item.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedItems([...selectedItems, item.id]);
+                                } else {
+                                  setSelectedItems(selectedItems.filter(id => id !== item.id));
+                                }
+                              }}
+                              className="h-4 w-4"
+                            />
+                            <img
+                              src={item.productImage}
+                              alt={item.productName}
+                              className="w-16 h-16 rounded-md object-cover border"
+                            />
                             <div className="flex-1">
                               <h4 className="font-medium">{item.productName}</h4>
                               <p className="text-sm text-muted-foreground">
@@ -388,11 +445,14 @@ export default function ReturnsPage() {
                             </Badge>
                           )}
                         </div>
+                        
                       </div>
+                      
                     </div>
                   ))}
                 </div>
               )}
+              
             </CardContent>
           </Card>
         )}
@@ -418,7 +478,7 @@ export default function ReturnsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleConfirmReturn}
               disabled={processReturnMutation.isPending}
             >

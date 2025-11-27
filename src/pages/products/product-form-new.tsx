@@ -31,8 +31,9 @@ export default function ProductFormNew() {
                   (user as any)?.is_staff;
   
   // Get store_id from current user
-  const userStoreId = (user as any)?.store_id || (user as any)?.store || '18';
-  
+  const userStoreId = (user as any)?.store_id || (user as any)?.store || '9';
+  const savedStoreSlug = localStorage.getItem("userSlug");
+
   // Selected store state (Admin can change it, regular user uses their store)
   const [selectedStore, setSelectedStore] = useState<string>("");
   
@@ -75,6 +76,49 @@ export default function ProductFormNew() {
     queryFn: () => getCategories(selectedStore),
     enabled: !!user && !!selectedStore,
   });
+  useEffect(() => {
+    if (!stores.length) return;
+  
+    const savedStoreSlug = localStorage.getItem("userSlug");
+  
+    // لو المستخدم Admin → بلاش نختارله حاجة
+    if (isAdmin) return;
+  
+    // لو أصلا اخترنا متجر قبل كده → بلاش نغيره
+    if (selectedStore) return;
+  
+    if (savedStoreSlug) {
+      const matchedStore = stores.find(
+        (store: any) => store.slug === savedStoreSlug
+      );
+  
+      if (matchedStore) {
+        setSelectedStore(matchedStore.id.toString());
+        console.log("🎯 Auto-selected store:", matchedStore);
+      }
+    }
+  }, [stores, selectedStore, isAdmin]);
+  useEffect(() => {
+    if (!stores.length) return;
+    if (isAdmin) return;
+    if (selectedStore) return;
+  
+    const savedStoreSlug = localStorage.getItem("store_slug");
+  
+    if (savedStoreSlug) {
+      const matchedStore = stores.find((s: any) => s.slug === savedStoreSlug);
+      if (matchedStore) {
+        setSelectedStore(matchedStore.id.toString());
+        return;
+      }
+    }
+  
+    // fallback
+    if (userStoreId) {
+      setSelectedStore(userStoreId.toString());
+    }
+  }, [stores, selectedStore, isAdmin, userStoreId]);
+  
   
   const categoriesLoading = allCategoriesLoading || storeCategoriesLoading;
   

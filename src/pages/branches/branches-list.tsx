@@ -280,7 +280,7 @@ export default function BranchesList() {
                     إضافة فرع جديد
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto rounded-2xl">
                   <DialogHeader>
                     <DialogTitle>
                       {editingBranch ? "تعديل الفرع" : "إضافة فرع جديد"}

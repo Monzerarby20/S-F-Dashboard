@@ -33,6 +33,7 @@ import NotificationsPage from "./pages/notifications/notifications";
 import ProfilePage from "./pages/profile/profile";
 import ApiTestPage from "./pages/ApiTestPage";
 import Loading from "./components/common/loading";
+import ProductFormEdit from "./pages/products/product-form-edit";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -55,7 +56,7 @@ function Router() {
           <Route path="/orders/:id" component={OrderDetails} />
           <Route path="/products" component={ProductsList} />
           <Route path="/products/new" component={ProductForm} />
-          <Route path="/products/edit/:id" component={ProductForm} />
+          <Route path="/products/edit/:slug" component={ProductFormEdit} />
           <Route path="/products/upload" component={ExcelUpload} />
           <Route path="/departments" component={Departments} />
           <Route path="/branches" component={BranchesList} />

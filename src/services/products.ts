@@ -115,3 +115,35 @@ export const getStores = async () => {
     throw error;
   }
 };
+
+
+export const getProductBySlug = async (slug: string) => {
+  try {
+    const url = `/catalog/products/${slug}/`;
+    console.log("Fetching product from:", url);
+
+    const response = await api.get(url);
+    console.log("Product fetched:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching product by slug:", error);
+    throw error;
+  }
+};
+
+
+
+export const updateProduct = async (slug: string, data: any) => {
+  try {
+    const url = `/catalog/products/${slug}/`;
+    console.log("Updating product from:", url);
+
+    const response = await api.put(url, data);
+    console.log("Product updated:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Error updating product:", error);
+    throw error;
+  }
+};
+

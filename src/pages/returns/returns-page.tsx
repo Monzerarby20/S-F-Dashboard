@@ -6,13 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Trash2, RotateCcw, Scan, Clock, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { Trash2, RotateCcw, Scan, Clock, CheckCircle, XCircle, AlertTriangle, ScanBarcode } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
+import { lookupInvoice, requestRma ,selectItmeToReturn } from "@/services/return";
 
 interface ReturnOrder {
   id: number;
@@ -40,14 +41,18 @@ export default function ReturnsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const scannerInputRef = useRef<HTMLInputElement>(null);
-  
-  const [currentReturn, setCurrentReturn] = useState<ReturnOrder | null>(null);
+
+  const [currentReturn, setCurrentReturn] = useState<object | null>(null);
   const [scannerInput, setScannerInput] = useState("");
-  const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [selectedItems, setSelectedItems] = useState<number | null>(null);
+  const [rmaId, setRmaId] = useState<number | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     item?: ReturnOrderItem;
   }>({ open: false });
+  const [returnData, setReturnData] = useState({});
+
+  const [rmaType, setRmaType] = useState<'return' | 'replace'>('return');
 
   // Auto-focus scanner input
   useEffect(() => {
@@ -61,19 +66,45 @@ export default function ReturnsPage() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
+  // Resons
+ const REASONS = [
+    { value: "damaged", label: "المنتج تالف" },
+    { value: "wrong_item", label: "تم استلام منتج خاطئ" },
+    { value: "not_needed", label: "لا يحتاج المنتج" },
+    { value: "wrong_size", label: "مقاس غير مناسب" },
+    { value: "missing_parts", label: "المنتج ناقص قطع" },
+    { value: "quality_issue", label: "مشاكل جودة" },
+    { value: "changed_mind", label: "العميل غير رأيه" },
+    { value: "other", label: "سبب آخر" },
+]
 
   // Fetch return order by barcode
   const fetchReturnOrderMutation = useMutation({
-    mutationFn: async (barcode: string) => {
-      const response = await apiRequest('GET', `/api/returns/scan/${barcode}`);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'فشل في جلب بيانات الاسترجاع');
-      }
-      return response.json();
-    },
+    mutationFn: lookupInvoice,
     onSuccess: (data: ReturnOrder) => {
-      setCurrentReturn(data);
+      const mapped: object = {
+        id: Date.now(), // أو لو السيرفر بيرجع ID حطه
+        qrCode: data.invoice_number,
+        returnBarcode: data.invoice_number,
+        customerName: data.customer_name,
+        customerPhone: null,
+        totalAmount: data.total_amount,
+        returnPolicy: null,
+        returnExpiryDate: null,
+
+        paymentMethod: data.payment_method,
+        items: data.items.map((item: any, index: number) => ({
+          id: index + 1,
+          productId: item.product_id,
+          productImage: item.product_image,
+          productName: item.product_name,
+          productBarcode: item.barcode,
+          originalPrice: item.unit_price,
+          quantity: item.quantity,
+          isReturned: false,
+        })),
+      };
+      setCurrentReturn(mapped);
       toast({
         title: "تم العثور على الطلب",
         description: `طلب العميل ${data.customerName || 'غير محدد'} جاهز للاسترجاع`,
@@ -87,31 +118,65 @@ export default function ReturnsPage() {
       });
     },
   });
+  console.log("Current Return:", currentReturn);
+  console.log("test invoice number:", currentReturn?.qrCode, "scannerInput:", scannerInput);
+  //Mutation to request RMA
+  const requestRmaMutation = useMutation({
+    mutationFn: async (invoiceData: object) => {
+      try {
+        const response = await requestRma(invoiceData);
+        return response;
+      } catch (error: any) {
+        throw new Error(error.response?.data?.message || "فشل في إرسال طلب الاسترجاع");
+      }
+    },
+
+    onSuccess: (data) => {
+      setRmaId(data.id);
+      toast({
+        title: "تم إرسال الطلب",
+        description: "تم إنشاء طلب الاسترجاع (RMA) بنجاح",
+      });
+
+      console.log("RMA Response:", data);
+    },
+
+    onError: (error: Error) => {
+      toast({
+        title: "خطأ",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  // test select item return
+  console.log("selectedItems:", selectedItems);
+  console.log("rmaId:", rmaId);
 
   // Process return item
   const processReturnMutation = useMutation({
-    mutationFn: async (data: { returnId: number; itemId: number; productBarcode: string }) => {
-      const response = await apiRequest('POST', '/returns/process-item', data);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'فشل في معالجة الاسترجاع');
+    mutationFn: async   (productData: object) => {
+      try {
+        const response = await selectItmeToReturn(rmaId as number, productData);
+        return response;
+      } catch (error: any) {
+        throw new Error(error.response?.data?.message || "فشل في إضافة المنتج إلى الاسترجاع");
       }
-      return response.json();
     },
     onSuccess: (data) => {
       // Update current return data
       if (currentReturn) {
-        const updatedItems = currentReturn.items.map(item => 
+        const updatedItems = currentReturn.items.map((item: any) =>
           item.id === data.itemId ? { ...item, isReturned: true } : item
         );
         setCurrentReturn({ ...currentReturn, items: updatedItems });
       }
-      
+
       toast({
         title: "تم الاسترجاع",
-        description: `تم استرجاع ${data.productName} بنجاح`,
+        description: `تم اضافة المنتج إلى الاسترجاع بنجاح`,
       });
-      
+
       setScannerInput("");
       setConfirmDialog({ open: false });
     },
@@ -130,13 +195,17 @@ export default function ReturnsPage() {
 
     // Check if scanning return barcode
     if (!currentReturn) {
-      fetchReturnOrderMutation.mutate(scannerInput.trim());
+      console.log("Request", scannerInput.trim())
+      const scannerInputRequest = {
+        invoice_number: scannerInput.trim()
+      }
+      fetchReturnOrderMutation.mutate(scannerInputRequest);
     } else {
       // Check if scanning product barcode
-      const item = currentReturn.items.find(
+      const item = currentReturn.items.find((item: any) =>
         item => item.productBarcode === scannerInput.trim() && !item.isReturned
       );
-      
+
       if (item) {
         setConfirmDialog({ open: true, item });
       } else {
@@ -147,18 +216,23 @@ export default function ReturnsPage() {
         });
       }
     }
-    
+
     setScannerInput("");
   };
-
+console.log("confirmDialog:", confirmDialog);
+console.log("returnData:", returnData);
   const handleConfirmReturn = () => {
-    if (confirmDialog.item && currentReturn) {
-      processReturnMutation.mutate({
-        returnId: currentReturn.id,
-        itemId: confirmDialog.item.id,
-        productBarcode: confirmDialog.item.productBarcode,
-      });
-    }
+  
+      const productData = {
+        "product_id": selectedItems,
+        "quantity": returnData[selectedItems]?.qty,
+        "reason": returnData[selectedItems]?.reason,
+        "notes": returnData[selectedItems]?.notes,
+      }
+      console.log("productData:", productData);
+      processReturnMutation.mutate(productData);
+    
+    setConfirmDialog({ open: false });
   };
 
   const isReturnExpired = (expiryDate?: string) => {
@@ -192,9 +266,9 @@ export default function ReturnsPage() {
   return (
     <PageLayout>
       <PageHeader
-        title="إدارة الاسترجاع"
-        description="استرجاع المنتجات وإعادة الأموال للعملاء"
-        icon={<RotateCcw className="h-8 w-8" />}
+        title="انشاء استرجاع / استبدال"
+        subtitle="يمكنك اختيار المنتجات التي تريد استرجاعها أو استبدالها"
+
       />
 
       <div className="space-y-6">
@@ -214,17 +288,18 @@ export default function ReturnsPage() {
                   type="text"
                   placeholder={!currentReturn ? "امسح باركود الاسترجاع..." : "امسح باركود المنتج للاسترجاع..."}
                   value={scannerInput}
+
                   onChange={(e) => setScannerInput(e.target.value)}
                   className="flex-1 text-lg"
                   autoFocus
                 />
                 <Button type="submit" disabled={fetchReturnOrderMutation.isPending || processReturnMutation.isPending}>
-                  <Scan className="h-4 w-4 mr-2" />
-                  {!currentReturn ? "البحث" : "استرجاع"}
+                  <ScanBarcode className="h-4 w-4" />
+                  {!currentReturn ? "مسح" : "استرجاع"}
                 </Button>
               </div>
             </form>
-            
+
             {currentReturn && (
               <div className="mt-4 flex gap-2">
                 <Button variant="outline" onClick={resetReturn}>
@@ -244,13 +319,13 @@ export default function ReturnsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>معلومات الطلب</span>
-                  <Badge 
+                  <Badge
                     variant={isReturnExpired(currentReturn.returnExpiryDate) ? "destructive" : "default"}
                     className="flex items-center gap-1"
                   >
                     <Clock className="h-3 w-3" />
-                    {isReturnExpired(currentReturn.returnExpiryDate) 
-                      ? "منتهي الصلاحية" 
+                    {isReturnExpired(currentReturn.returnExpiryDate)
+                      ? "منتهي الصلاحية"
                       : `${getRemainingDays(currentReturn.returnExpiryDate)} يوم متبقي`
                     }
                   </Badge>
@@ -269,8 +344,20 @@ export default function ReturnsPage() {
                     </div>
                   )}
                   <div className="flex justify-between">
+                    <span className="text-muted-foreground">رقم الفاتورة:</span>
+                    <span className="font-medium">{currentReturn.qrCode}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-muted-foreground">إجمالي الطلب:</span>
                     <span className="font-medium">{currentReturn.totalAmount.toFixed(2)} ر.س</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">وسيلة الدفع:</span>
+                    <span className="font-medium">{currentReturn.paymentMethod}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">وسيلة الدفع:</span>
+                    <span className="font-medium">Paid</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">المسترجع:</span>
@@ -301,7 +388,7 @@ export default function ReturnsPage() {
             {/* Return Progress */}
             <Card>
               <CardHeader>
-                <CardTitle>حالة الاسترجاع</CardTitle>
+                <CardTitle>ملخص العملية</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -321,9 +408,9 @@ export default function ReturnsPage() {
                       {currentReturn.items.length - getReturnedItemsCount()}
                     </Badge>
                   </div>
-                  
+
                   <Separator />
-                  
+
                   <div className="space-y-2">
                     <div className="flex justify-between font-medium">
                       <span>إجمالي المبلغ المسترجع:</span>
@@ -344,6 +431,7 @@ export default function ReturnsPage() {
             <CardHeader>
               <CardTitle>منتجات الطلب</CardTitle>
             </CardHeader>
+
             <CardContent>
               {currentReturn.items.length === 0 ? (
                 <EmptyState
@@ -356,15 +444,41 @@ export default function ReturnsPage() {
                   {currentReturn.items.map((item) => (
                     <div
                       key={item.id}
-                      className={`p-4 border rounded-lg transition-colors ${
-                        item.isReturned
-                          ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                          : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700'
-                      }`}
+                      className={`p-4 border rounded-lg transition-colors ${item.isReturned
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                        : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700'
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedItems === item.productId}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedItems(item.productId);
+                              
+                                  setReturnData(prev => ({
+                                    ...prev,
+                                    [item.productId]: {
+                                      qty: 1,
+                                      reason: "",
+                                      notes: ""
+                                    }
+                                  }));
+                                } else {
+                                  setSelectedItems(null);
+                                }
+                              }}
+                              
+                              className="h-4 w-4"
+                            />
+                            <img
+                              src={item.productImage}
+                              alt={item.productName}
+                              className="w-16 h-16 rounded-md object-cover border"
+                            />
                             <div className="flex-1">
                               <h4 className="font-medium">{item.productName}</h4>
                               <p className="text-sm text-muted-foreground">
@@ -393,14 +507,158 @@ export default function ReturnsPage() {
                             </Badge>
                           )}
                         </div>
+
+                        {/* Return / Replace Selector */}
+                        <div className="mb-4">
+                          <label className="block mb-2 font-medium">نوع العملية</label>
+
+                          <select
+                            className="w-full border rounded-lg p-1 m-2 bg-white text-[#747474] dark:bg-gray-900"
+                            value={rmaType}
+                            onChange={(e) => {
+                              const value = e.target.value as 'return' | 'replace';
+                              setRmaType(value);
+                              const rmaData = {
+                                "invoice_number": currentReturn.qrCode,
+                                "rma_type": value,
+                                "notes": "Customer wants to return items"
+                              }
+                              
+                              // 🔥 شغّل الميوتيشن
+                              requestRmaMutation.mutate(
+                                rmaData
+                              );
+                            }}
+                            >
+                            <option value="return">استرجاع</option>
+                            <option value="replace">استبدال</option>
+                          </select>
+                        </div>
+
                       </div>
+
+                            {selectedItems === item.productId && (
+      <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+    
+        {/* كمية الاسترجاع */}
+        <label className="font-medium">الكمية المسترجعة</label>
+        <div className="flex items-center mt-2 gap-2">
+          <button
+            className="px-3 py-1 border rounded"
+            onClick={() => {
+              setReturnData(prev => ({
+                ...prev,
+                [item.productId]: {
+                  ...prev[item.productId],
+                  qty: Math.max(1, prev[item.productId].qty - 1)
+                }
+              }));
+            }}
+          >
+            -
+          </button>
+    
+          <span className="px-4">{returnData[item.productId]?.qty}</span>
+    
+          <button
+            className="px-3 py-1 border rounded"
+            onClick={() => {
+              setReturnData(prev => ({
+                ...prev,
+                [item.productId]: {
+                  ...prev[item.productId],
+                  qty: Math.min(item.quantity, prev[item.productId].qty + 1) // 🔥 هنا الضمان إن الكمية لا تتعدى الفاتورة
+                }
+              }));
+            }}
+          >
+            +
+          </button>
+        </div>
+    
+        {/* سبب الاسترجاع */}
+       
+        <label className="font-medium mt-4 block">سبب الاسترجاع</label>
+        <select
+          className="w-full p-2 border rounded mt-2"
+          value={returnData[item.productId]?.reason}
+          onChange={(e) => {
+            setReturnData(prev => ({
+              ...prev,
+              [item.productId]: {
+                ...prev[item.productId],
+                reason: e.target.value
+              }
+            }));
+          }}
+        >
+          <option value="">اختر السبب</option>
+          {REASONS.map((reason) => (
+        <option key={reason.value} value={reason.value}>
+          {reason.label}
+        </option>
+      ))}
+        </select>
+    
+        {/* ملاحظات */}
+        <label className="font-medium mt-4 block">ملاحظات</label>
+        <textarea
+          className="w-full p-2 border rounded mt-2"
+          placeholder="أضف أي ملاحظات..."
+          value={returnData[item.productId]?.notes}
+          onChange={(e) => {
+            setReturnData(prev => ({
+              ...prev,
+              [item.productId]: {
+                ...prev[item.productId],
+                notes: e.target.value
+              }
+            }));
+          }}
+        />
+    
+        
+      </div>
+    )}
                     </div>
                   ))}
                 </div>
               )}
+
             </CardContent>
           </Card>
         )}
+            {/* الأزرار */}
+    
+    <div className="space-y-3">
+                          <Button
+                            className="w-full"
+                            size="lg"
+                            disabled={fetchReturnOrderMutation.isPending || requestRmaMutation.isPending || processReturnMutation.isPending}
+                            onClick={handleConfirmReturn}
+                          >
+                            {fetchReturnOrderMutation.isPending || requestRmaMutation.isPending || processReturnMutation.isPending ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin ml-2" />
+                                جاري المعالجة...
+                              </>
+                            ) : (
+                              <>
+                                <RotateCcw className="h-4 w-4 ml-2" />
+                                إتمام الاسترجاع
+                              </>
+                            )}
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setSelectedItems(null)}
+                            disabled={selectedItems === null}
+                          >
+                            الغاء
+                          </Button>
+                        </div>
       </div>
 
       {/* Confirmation Dialog */}
@@ -423,7 +681,7 @@ export default function ReturnsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleConfirmReturn}
               disabled={processReturnMutation.isPending}
             >

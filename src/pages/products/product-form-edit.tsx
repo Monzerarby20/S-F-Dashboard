@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/layout/sidebar";
 import TopBar from "@/components/layout/topbar";
@@ -13,11 +13,11 @@ import { ArrowRight, Save, Plus, X, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import axios from "axios";
-import { getCategories, getStores } from "@/services/products";
+import { getCategories, getStores, getProductBySlug , updateProduct} from "@/services/products";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-export default function ProductFormNew() {
+export default function ProductFormEdit() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -33,7 +33,49 @@ export default function ProductFormNew() {
   // Get store_id from current user
   const userStoreId = (user as any)?.store_id || (user as any)?.store || '9';
   const savedStoreSlug = localStorage.getItem("userSlug");
+    const { slug } = useParams();
+    const productSlug = slug as string;
+    console.log(productSlug)
 
+    const { data: productData, isLoading: productLoading } = useQuery({
+        queryKey: ['product', productSlug],
+        queryFn: () => getProductBySlug(productSlug),
+        enabled: !!productSlug,
+    });
+    console.log(productData)
+
+    useEffect(() => {
+        if (productData) {
+          setFormData({
+            name: productData.name,
+            sku: productData.sku,
+            category: productData.category?.toString() || "",
+            price: productData.price?.toString() || "",
+            description: productData.description || "",
+            short_description: productData.short_description || "",
+            barcode: productData.barcode || "",
+            item_number: productData.item_number || "",
+            brand: productData.brand || "",
+            compare_price: productData.compare_price?.toString() || "",
+            cost_price: productData.cost_price?.toString() || "",
+            discount_percentage: productData.discount_percentage?.toString() || "",
+            weight: productData.weight?.toString() || "",
+            dimensions: productData.dimensions || "",
+            loyalty_points: productData.loyalty_points?.toString() || "",
+            expiry_date: productData.expiry_date || "",
+            is_featured: productData.is_featured,
+            is_active: productData.is_active,
+            quantity_on_hand: productData.inventory_data?.quantity_on_hand || "",
+            reorder_level: productData.inventory_data?.reorder_level || "",
+            max_stock_level: productData.inventory_data?.max_stock_level || "",
+            cost_per_unit: productData.inventory_data?.cost_per_unit || "",
+            location_in_store: productData.inventory_data?.location_in_store || "",
+          });
+      
+          setImages(productData.images || []);
+        }
+      }, [productData]);
+      
   // Selected store state (Admin can change it, regular user uses their store)
   const [selectedStore, setSelectedStore] = useState<string>("");
   
@@ -187,98 +229,45 @@ export default function ProductFormNew() {
     location_in_store: "",
   });
 
-  const createProductMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const token = localStorage.getItem('token');
-      
-      // Prepare payload
-      const payload: any = {
-        name: data.name,
-        sku: data.sku,
-        category: parseInt(data.category),
-        price: parseFloat(data.price),
-        store: parseInt(selectedStore),  // ← Add selected store
-      };
-
-      // Add optional fields if they have values
-      if (data.description) payload.description = data.description;
-      if (data.short_description) payload.short_description = data.short_description;
-      if (data.barcode) payload.barcode = data.barcode;
-      if (data.item_number) payload.item_number = data.item_number;
-      if (data.brand) payload.brand = data.brand;
-      if (data.compare_price) payload.compare_price = parseFloat(data.compare_price);
-      if (data.cost_price) payload.cost_price = parseFloat(data.cost_price);
-      if (data.discount_percentage) payload.discount_percentage = parseFloat(data.discount_percentage);
-      if (data.weight) payload.weight = parseFloat(data.weight);
-      if (data.dimensions) payload.dimensions = data.dimensions;
-      if (data.loyalty_points) payload.loyalty_points = parseInt(data.loyalty_points);
-      if (data.expiry_date) payload.expiry_date = data.expiry_date;
-      
-      // Boolean fields
-      payload.is_featured = data.is_featured;
-      payload.is_active = data.is_active;
-
-      // Add images if provided
-      if (images.length > 0) {
-        payload.images = images;
-      }
-
-      // Add inventory data if provided
-      if (data.quantity_on_hand || data.reorder_level || data.cost_per_unit || data.max_stock_level || data.location_in_store) {
-        payload.inventory_data = {};
-        if (data.quantity_on_hand) payload.inventory_data.quantity_on_hand = parseInt(data.quantity_on_hand);
-        if (data.reorder_level) payload.inventory_data.reorder_level = parseInt(data.reorder_level);
-        if (data.max_stock_level) payload.inventory_data.max_stock_level = parseInt(data.max_stock_level);
-        if (data.cost_per_unit) payload.inventory_data.cost_per_unit = parseFloat(data.cost_per_unit);
-        if (data.location_in_store) payload.inventory_data.location_in_store = data.location_in_store;
-      }
-
-      console.log('Sending payload:', payload);
-
-      const response = await axios.post(
-        `${API_BASE_URL}catalog/products/`,
-        payload,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      return response.data;
+const updateProductMutation = useMutation({
+    mutationFn: async ({ slug, data }: { slug: string; data: any }) => {
+      return await updateProduct(slug, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product', slug] });
       toast({
         title: "تم الحفظ",
-        description: "تم إنشاء المنتج بنجاح",
+        description: "تم حفظ التعديلات بنجاح",
       });
       setLocation("/products");
     },
     onError: (error: any) => {
-      console.error('❌ Full Error:', error);
+        console.error('❌ Full Error:', error);
       console.error('❌ Error Response:', error.response);
       console.error('❌ Error Data:', error.response?.data);
       console.error('❌ Error Status:', error.response?.status);
       console.error('❌ Error Message:', error.message);
-      
       const errorMessage = error.response?.data?.detail || 
                           error.response?.data?.message || 
                           JSON.stringify(error.response?.data) || 
-                          "فشل في إنشاء المنتج";
-      
+                          "فشل في حفظ التعديلات";
       toast({
         title: "خطأ",
         description: errorMessage,
         variant: "destructive",
       });
-    },
+    }
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createProductMutation.mutate(formData);
+    
+  const finalData = {
+    ...formData,
+    store: selectedStore || userStoreId, // 👈 لازم تتبعت
+    images: images, // ولو API طالب الصور
+  };
+    updateProductMutation.mutate({ slug: productSlug, data: finalData });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -312,7 +301,7 @@ export default function ProductFormNew() {
                 العودة للمنتجات
               </Button>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                إضافة منتج جديد
+                تعديل منتج
               </h1>
             </div>
 
@@ -825,10 +814,10 @@ export default function ProductFormNew() {
                 <Button 
                   type="submit" 
                   className="bg-primary hover:bg-primary/90"
-                  disabled={createProductMutation.isPending}
+                  disabled={updateProductMutation.isPending}
                 >
                   <Save className="h-4 w-4 ml-2" />
-                  {createProductMutation.isPending ? "جاري الحفظ..." : "حفظ المنتج"}
+                  {updateProductMutation.isPending ? "جاري الحفظ..." : "حفظ التعديلات"}
                 </Button>
               </div>
             </form>

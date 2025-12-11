@@ -430,7 +430,7 @@ export default function ProductsList() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
-                                <Link href={`/products/edit/${product.id}`}>
+                                <Link href={`/products/edit/${product.slug}`}>
                                   <Button variant="ghost" size="sm">
                                     <Edit className="h-4 w-4" />
                                   </Button>

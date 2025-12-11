@@ -13,7 +13,7 @@ import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-import { lookupInvoice, requestRma } from "@/services/return";
+import { lookupInvoice, requestRma ,selectItmeToReturn } from "@/services/return";
 
 interface ReturnOrder {
   id: number;
@@ -45,6 +45,7 @@ export default function ReturnsPage() {
   const [currentReturn, setCurrentReturn] = useState<object | null>(null);
   const [scannerInput, setScannerInput] = useState("");
   const [selectedItems, setSelectedItems] = useState<number | null>(null);
+  const [rmaId, setRmaId] = useState<number | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     item?: ReturnOrderItem;
@@ -131,6 +132,7 @@ export default function ReturnsPage() {
     },
 
     onSuccess: (data) => {
+      setRmaId(data.id);
       toast({
         title: "تم إرسال الطلب",
         description: "تم إنشاء طلب الاسترجاع (RMA) بنجاح",
@@ -149,21 +151,22 @@ export default function ReturnsPage() {
   });
   // test select item return
   console.log("selectedItems:", selectedItems);
+  console.log("rmaId:", rmaId);
 
   // Process return item
   const processReturnMutation = useMutation({
-    mutationFn: async (data: { returnId: number; itemId: number; productBarcode: string }) => {
-      const response = await apiRequest('POST', '/returns/process-item', data);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'فشل في معالجة الاسترجاع');
+    mutationFn: async   (productData: object) => {
+      try {
+        const response = await selectItmeToReturn(rmaId as number, productData);
+        return response;
+      } catch (error: any) {
+        throw new Error(error.response?.data?.message || "فشل في إضافة المنتج إلى الاسترجاع");
       }
-      return response.json();
     },
     onSuccess: (data) => {
       // Update current return data
       if (currentReturn) {
-        const updatedItems = currentReturn.items.map(item =>
+        const updatedItems = currentReturn.items.map((item: any) =>
           item.id === data.itemId ? { ...item, isReturned: true } : item
         );
         setCurrentReturn({ ...currentReturn, items: updatedItems });
@@ -171,7 +174,7 @@ export default function ReturnsPage() {
 
       toast({
         title: "تم الاسترجاع",
-        description: `تم استرجاع ${data.productName} بنجاح`,
+        description: `تم اضافة المنتج إلى الاسترجاع بنجاح`,
       });
 
       setScannerInput("");
@@ -199,7 +202,7 @@ export default function ReturnsPage() {
       fetchReturnOrderMutation.mutate(scannerInputRequest);
     } else {
       // Check if scanning product barcode
-      const item = currentReturn.items.find(
+      const item = currentReturn.items.find((item: any) =>
         item => item.productBarcode === scannerInput.trim() && !item.isReturned
       );
 
@@ -216,15 +219,20 @@ export default function ReturnsPage() {
 
     setScannerInput("");
   };
-
+console.log("confirmDialog:", confirmDialog);
+console.log("returnData:", returnData);
   const handleConfirmReturn = () => {
-    if (confirmDialog.item && currentReturn) {
-      processReturnMutation.mutate({
-        returnId: currentReturn.id,
-        itemId: confirmDialog.item.id,
-        productBarcode: confirmDialog.item.productBarcode,
-      });
-    }
+  
+      const productData = {
+        "product_id": selectedItems,
+        "quantity": returnData[selectedItems]?.qty,
+        "reason": returnData[selectedItems]?.reason,
+        "notes": returnData[selectedItems]?.notes,
+      }
+      console.log("productData:", productData);
+      processReturnMutation.mutate(productData);
+    
+    setConfirmDialog({ open: false });
   };
 
   const isReturnExpired = (expiryDate?: string) => {

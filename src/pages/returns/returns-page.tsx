@@ -13,7 +13,7 @@ import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-import { lookupInvoice, requestRma ,selectItmeToReturn } from "@/services/return";
+import { confirmReturn, lookupInvoice, requestRma ,selectItmeToReturn } from "@/services/return";
 
 interface ReturnOrder {
   id: number;
@@ -45,6 +45,8 @@ export default function ReturnsPage() {
   const [currentReturn, setCurrentReturn] = useState<object | null>(null);
   const [scannerInput, setScannerInput] = useState("");
   const [selectedItems, setSelectedItems] = useState<number | null>(null);
+  const [finalConfirm, setFinalConfirm] = useState<boolean>(false);
+
   const [rmaId, setRmaId] = useState<number | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
@@ -52,7 +54,9 @@ export default function ReturnsPage() {
   }>({ open: false });
   const [returnData, setReturnData] = useState({});
 
-  const [rmaType, setRmaType] = useState<'return' | 'replace'>('return');
+  // const [rmaType, setRmaType] = useState<'return' | 'replace'>('return');
+  const [rmaType, setRmaType] = useState('select');
+
 
   // Auto-focus scanner input
   useEffect(() => {
@@ -222,7 +226,7 @@ export default function ReturnsPage() {
 console.log("confirmDialog:", confirmDialog);
 console.log("returnData:", returnData);
   const handleConfirmReturn = () => {
-  
+    setFinalConfirm(true)
       const productData = {
         "product_id": selectedItems,
         "quantity": returnData[selectedItems]?.qty,
@@ -234,6 +238,43 @@ console.log("returnData:", returnData);
     
     setConfirmDialog({ open: false });
   };
+
+  const confirmReturnMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        const response = await confirmReturn(rmaId as number);
+        return response;
+      } catch (error: any) {
+        throw new Error(error.response?.data?.message || "فشل في تأكيد الاسترجاع");
+      }
+    },
+  
+    onSuccess: (data) => {
+      console.log("here from success")
+      toast({
+        title: "تم تأكيد الاسترجاع",
+        description: "تم تأكيد الاسترجاع بنجاح.",
+      });
+  
+      // اقفل الدايلوج لو عندك
+      setConfirmDialog({ open: false });
+      resetReturn()
+    },
+  
+    onError: (error: Error) => {
+      toast({
+        title: "خطأ أثناء التأكيد",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  
+
+  const handleConfirm = () => {
+    console.log("here from confirm")
+    confirmReturnMutation.mutate();
+  }
 
   const isReturnExpired = (expiryDate?: string) => {
     if (!expiryDate) return false;
@@ -530,6 +571,8 @@ console.log("returnData:", returnData);
                               );
                             }}
                             >
+                            <option disabled  value="select">اختر العملية</option>
+
                             <option value="return">استرجاع</option>
                             <option value="replace">استبدال</option>
                           </select>
@@ -682,14 +725,76 @@ console.log("returnData:", returnData);
           <AlertDialogFooter>
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleConfirmReturn}
-              disabled={processReturnMutation.isPending}
+              onClick={handleConfirm}
+              disabled={confirmReturnMutation.isPending}
             >
-              {processReturnMutation.isPending ? "جاري الاسترجاع..." : "تأكيد الاسترجاع"}
+              {confirmReturnMutation.isPending ? "جاري الاسترجاع..." : "تأكيد الاسترجاع"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={finalConfirm} onOpenChange={setFinalConfirm}>
+      <AlertDialogContent>
+  <AlertDialogHeader>
+    <AlertDialogTitle className="text-right">تأكيد العملية</AlertDialogTitle>
+
+    <AlertDialogDescription className="text-right">
+      <div className="mt-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2">
+
+        {/* خط واحد: عنوان يمين + قيمة شمال */}
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">رقم الفاتورة:</span>
+          <span className="font-medium">{currentReturn?.qrCode}</span>
+        </div>
+
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">اسم العميل:</span>
+          <span className="font-medium">{currentReturn?.customerName}</span>
+        </div>
+
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">رقم الهاتف:</span>
+          <span className="font-medium">{currentReturn?.customerPhone}</span>
+        </div>
+
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">مبلغ الاسترجاع:</span>
+          <span className="font-medium">{currentReturn?.totalAmount}</span>
+        </div>
+
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">طريقة الدفع:</span>
+          <span className="font-medium">{currentReturn?.paymentMethod}</span>
+        </div>
+
+      </div>
+
+      <p className="mt-4">عند تأكيد العملية سيتم:</p>
+
+      <ul className="mt-3 list-disc pr-5 space-y-1">
+        <li>إنشاء عملية استرجاع للمنتجات المحددة</li>
+        <li>معالجة عملية استرداد المبلغ</li>
+        <li>تحديث حالة الفاتورة</li>
+        <li>إصدار إشعار دائن (إن لزم)</li>
+      </ul>
+    </AlertDialogDescription>
+  </AlertDialogHeader>
+
+  <AlertDialogFooter>
+    <AlertDialogCancel>رجوع</AlertDialogCancel>
+
+    <AlertDialogAction
+      onClick={() => {
+        setFinalConfirm(false);
+      }}
+    >
+      تأكيد
+    </AlertDialogAction>
+  </AlertDialogFooter>
+</AlertDialogContent>
+
+</AlertDialog>
+
     </PageLayout>
   );
 }

@@ -50,7 +50,16 @@ export const confirmReturn = async(rma_id:number) =>{
 
 
 //Replace Items
-
+export const selectItmeToReplace = async(rma_id:number,productData:object) =>{
+    try{
+        const response = await api.post(`rma/rma/${rma_id}/replace_item/`,productData)
+        console.log("Returned Item Successfully",response.data)
+        return response.data
+    }catch(error){
+        console.log("Couldn't return product ",error)
+        throw error
+    }
+}
 
 export const confirmReplace = async(rma_id:number,amount_paid:object) =>{
     try{

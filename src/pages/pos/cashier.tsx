@@ -1772,7 +1772,7 @@ export default function CashierPOS() {
                           {activeTab === "pos" ? (
 
                             <div className="bg-green-100 text-green-600 px-4 py-2 rounded-lg font-semibold text-center mb-4">
-                              إجمالي المبلغ: {cartSummary.total_amount} ﷼
+                              إجمالي المبلغ: {total.toFixed(2)} ﷼
                             </div>
                           ) : (<div className="bg-green-100 text-green-600 px-4 py-2 rounded-lg font-semibold text-center mb-4">
                             إجمالي المبلغ: {orderDataDetails.totals.grand_total} ﷼

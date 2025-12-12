@@ -6,14 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Trash2, RotateCcw, Scan, Clock, CheckCircle, XCircle, AlertTriangle, ScanBarcode } from "lucide-react";
+import { RotateCcw, Scan, Clock, CheckCircle, XCircle, AlertTriangle, ScanBarcode } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
-import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-import { confirmReturn, lookupInvoice, requestRma ,selectItmeToReturn } from "@/services/return";
+import { confirmReturn, lookupInvoice, requestRma, selectItmeToReturn, selectItmeToReplace, confirmReplace } from "@/services/return";
 
 interface ReturnOrder {
   id: number;
@@ -41,7 +39,7 @@ export default function ReturnsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const scannerInputRef = useRef<HTMLInputElement>(null);
-
+  const [replaceDailog,setReplaceDailog] = useState<boolean>(false)
   const [currentReturn, setCurrentReturn] = useState<object | null>(null);
   const [scannerInput, setScannerInput] = useState("");
   const [selectedItems, setSelectedItems] = useState<number | null>(null);
@@ -57,7 +55,7 @@ export default function ReturnsPage() {
   // const [rmaType, setRmaType] = useState<'return' | 'replace'>('return');
   const [rmaType, setRmaType] = useState('select');
 
-
+  console.log("Opreation state: ", rmaType)
   // Auto-focus scanner input
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -71,7 +69,7 @@ export default function ReturnsPage() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
   // Resons
- const REASONS = [
+  const REASONS = [
     { value: "damaged", label: "المنتج تالف" },
     { value: "wrong_item", label: "تم استلام منتج خاطئ" },
     { value: "not_needed", label: "لا يحتاج المنتج" },
@@ -80,7 +78,7 @@ export default function ReturnsPage() {
     { value: "quality_issue", label: "مشاكل جودة" },
     { value: "changed_mind", label: "العميل غير رأيه" },
     { value: "other", label: "سبب آخر" },
-]
+  ]
 
   // Fetch return order by barcode
   const fetchReturnOrderMutation = useMutation({
@@ -159,7 +157,7 @@ export default function ReturnsPage() {
 
   // Process return item
   const processReturnMutation = useMutation({
-    mutationFn: async   (productData: object) => {
+    mutationFn: async (productData: object) => {
       try {
         const response = await selectItmeToReturn(rmaId as number, productData);
         return response;
@@ -193,6 +191,48 @@ export default function ReturnsPage() {
     },
   });
 
+  // Process replace item
+  const processReplaceMutation = useMutation({
+    mutationFn: async (productData: object) => {
+      try {
+        const response = await selectItmeToReplace(rmaId as number, productData);
+        return response;
+      } catch (error: any) {
+        throw new Error(
+          error.response?.data?.message || "فشل في إضافة المنتج للاستبدال"
+        );
+      }
+    },
+
+    onSuccess: (data) => {
+      // تحديث بيانات الاستبدال الحالية
+      if (currentReplace) {
+        const updatedItems = currentReplace.items.map((item: any) =>
+          item.id === data.itemId ? { ...item, isReplaced: true } : item
+        );
+
+        setCurrentReplace({ ...currentReplace, items: updatedItems });
+      }
+
+      toast({
+        title: "تم إضافة المنتج للاستبدال",
+        description: "تم إضافة المنتج المطلوب لاستبدال بنجاح",
+      });
+
+      setScannerInput("");
+      setConfirmDialog({ open: false });
+    },
+
+    onError: (error: any) => {
+      toast({
+        title: "خطأ في الاستبدال",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+
   const handleScannerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!scannerInput.trim()) return;
@@ -223,10 +263,12 @@ export default function ReturnsPage() {
 
     setScannerInput("");
   };
-console.log("confirmDialog:", confirmDialog);
-console.log("returnData:", returnData);
+  console.log("confirmDialog:", confirmDialog);
+  console.log("returnData:", returnData);
   const handleConfirmReturn = () => {
-    setFinalConfirm(true)
+    if (rmaType === "return") {
+
+      setFinalConfirm(true)
       const productData = {
         "product_id": selectedItems,
         "quantity": returnData[selectedItems]?.qty,
@@ -235,8 +277,20 @@ console.log("returnData:", returnData);
       }
       console.log("productData:", productData);
       processReturnMutation.mutate(productData);
-    
-    setConfirmDialog({ open: false });
+
+    } else if (rmaType === "replace") {
+      setReplaceDailog(true)
+      const replaceData = {
+        "product_to_return":selectedItems,
+        "quantity_of_returned_product": returnData[selectedItems]?.qty,
+
+        "product_replaced": 4,
+        "quantity_of_replaced_product": 1,
+
+        "reason": returnData[selectedItems]?.reason,
+        "notes": returnData[selectedItems]?.notes
+      }
+    }
   };
 
   const confirmReturnMutation = useMutation({
@@ -248,19 +302,21 @@ console.log("returnData:", returnData);
         throw new Error(error.response?.data?.message || "فشل في تأكيد الاسترجاع");
       }
     },
-  
+
     onSuccess: (data) => {
       console.log("here from success")
       toast({
         title: "تم تأكيد الاسترجاع",
         description: "تم تأكيد الاسترجاع بنجاح.",
       });
-  
-      // اقفل الدايلوج لو عندك
-      setConfirmDialog({ open: false });
-      resetReturn()
+
+      // Close the final confirm dialog
+      setFinalConfirm(false);
+      setTimeout(() => {
+        resetReturn()
+      }, 100)
     },
-  
+
     onError: (error: Error) => {
       toast({
         title: "خطأ أثناء التأكيد",
@@ -269,7 +325,7 @@ console.log("returnData:", returnData);
       });
     },
   });
-  
+
 
   const handleConfirm = () => {
     console.log("here from confirm")
@@ -300,9 +356,16 @@ console.log("returnData:", returnData);
   const resetReturn = () => {
     setCurrentReturn(null);
     setScannerInput("");
-    setSelectedItems([]);
+    setSelectedItems(null);
     setConfirmDialog({ open: false });
+    setReturnData({});
+    setRmaId(null);
+    setRmaType("select");
+    setFinalConfirm(false);
+    // لو في أي حقول أو ورق مربوط بالطلب نظّفها برضو
+    queryClient.clear(); // optional لو عايز تمسح أي data cached
   };
+
 
   return (
     <PageLayout>
@@ -499,7 +562,7 @@ console.log("returnData:", returnData);
                               onChange={(e) => {
                                 if (e.target.checked) {
                                   setSelectedItems(item.productId);
-                              
+
                                   setReturnData(prev => ({
                                     ...prev,
                                     [item.productId]: {
@@ -512,7 +575,7 @@ console.log("returnData:", returnData);
                                   setSelectedItems(null);
                                 }
                               }}
-                              
+
                               className="h-4 w-4"
                             />
                             <img
@@ -564,14 +627,14 @@ console.log("returnData:", returnData);
                                 "rma_type": value,
                                 "notes": "Customer wants to return items"
                               }
-                              
+
                               // 🔥 شغّل الميوتيشن
                               requestRmaMutation.mutate(
                                 rmaData
                               );
                             }}
-                            >
-                            <option disabled  value="select">اختر العملية</option>
+                          >
+                            <option disabled value="select">اختر العملية</option>
 
                             <option value="return">استرجاع</option>
                             <option value="replace">استبدال</option>
@@ -580,89 +643,89 @@ console.log("returnData:", returnData);
 
                       </div>
 
-                            {selectedItems === item.productId && (
-      <div className="mt-4 p-4 border rounded-lg bg-gray-50">
-    
-        {/* كمية الاسترجاع */}
-        <label className="font-medium">الكمية المسترجعة</label>
-        <div className="flex items-center mt-2 gap-2">
-          <button
-            className="px-3 py-1 border rounded"
-            onClick={() => {
-              setReturnData(prev => ({
-                ...prev,
-                [item.productId]: {
-                  ...prev[item.productId],
-                  qty: Math.max(1, prev[item.productId].qty - 1)
-                }
-              }));
-            }}
-          >
-            -
-          </button>
-    
-          <span className="px-4">{returnData[item.productId]?.qty}</span>
-    
-          <button
-            className="px-3 py-1 border rounded"
-            onClick={() => {
-              setReturnData(prev => ({
-                ...prev,
-                [item.productId]: {
-                  ...prev[item.productId],
-                  qty: Math.min(item.quantity, prev[item.productId].qty + 1) // 🔥 هنا الضمان إن الكمية لا تتعدى الفاتورة
-                }
-              }));
-            }}
-          >
-            +
-          </button>
-        </div>
-    
-        {/* سبب الاسترجاع */}
-       
-        <label className="font-medium mt-4 block">سبب الاسترجاع</label>
-        <select
-          className="w-full p-2 border rounded mt-2"
-          value={returnData[item.productId]?.reason}
-          onChange={(e) => {
-            setReturnData(prev => ({
-              ...prev,
-              [item.productId]: {
-                ...prev[item.productId],
-                reason: e.target.value
-              }
-            }));
-          }}
-        >
-          <option value="">اختر السبب</option>
-          {REASONS.map((reason) => (
-        <option key={reason.value} value={reason.value}>
-          {reason.label}
-        </option>
-      ))}
-        </select>
-    
-        {/* ملاحظات */}
-        <label className="font-medium mt-4 block">ملاحظات</label>
-        <textarea
-          className="w-full p-2 border rounded mt-2"
-          placeholder="أضف أي ملاحظات..."
-          value={returnData[item.productId]?.notes}
-          onChange={(e) => {
-            setReturnData(prev => ({
-              ...prev,
-              [item.productId]: {
-                ...prev[item.productId],
-                notes: e.target.value
-              }
-            }));
-          }}
-        />
-    
-        
-      </div>
-    )}
+                      {selectedItems === item.productId && (
+                        <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+
+                          {/* كمية الاسترجاع */}
+                          <label className="font-medium">الكمية المسترجعة</label>
+                          <div className="flex items-center mt-2 gap-2">
+                            <button
+                              className="px-3 py-1 border rounded"
+                              onClick={() => {
+                                setReturnData(prev => ({
+                                  ...prev,
+                                  [item.productId]: {
+                                    ...prev[item.productId],
+                                    qty: Math.max(1, prev[item.productId].qty - 1)
+                                  }
+                                }));
+                              }}
+                            >
+                              -
+                            </button>
+
+                            <span className="px-4">{returnData[item.productId]?.qty}</span>
+
+                            <button
+                              className="px-3 py-1 border rounded"
+                              onClick={() => {
+                                setReturnData(prev => ({
+                                  ...prev,
+                                  [item.productId]: {
+                                    ...prev[item.productId],
+                                    qty: Math.min(item.quantity, prev[item.productId].qty + 1) // 🔥 هنا الضمان إن الكمية لا تتعدى الفاتورة
+                                  }
+                                }));
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          {/* سبب الاسترجاع */}
+
+                          <label className="font-medium mt-4 block">سبب الاسترجاع</label>
+                          <select
+                            className="w-full p-2 border rounded mt-2"
+                            value={returnData[item.productId]?.reason}
+                            onChange={(e) => {
+                              setReturnData(prev => ({
+                                ...prev,
+                                [item.productId]: {
+                                  ...prev[item.productId],
+                                  reason: e.target.value
+                                }
+                              }));
+                            }}
+                          >
+                            <option value="">اختر السبب</option>
+                            {REASONS.map((reason) => (
+                              <option key={reason.value} value={reason.value}>
+                                {reason.label}
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* ملاحظات */}
+                          <label className="font-medium mt-4 block">ملاحظات</label>
+                          <textarea
+                            className="w-full p-2 border rounded mt-2"
+                            placeholder="أضف أي ملاحظات..."
+                            value={returnData[item.productId]?.notes}
+                            onChange={(e) => {
+                              setReturnData(prev => ({
+                                ...prev,
+                                [item.productId]: {
+                                  ...prev[item.productId],
+                                  notes: e.target.value
+                                }
+                              }));
+                            }}
+                          />
+
+
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -671,41 +734,41 @@ console.log("returnData:", returnData);
             </CardContent>
           </Card>
         )}
-            {/* الأزرار */}
-    
-    <div className="space-y-3">
-                          <Button
-                            className="w-full"
-                            size="lg"
-                            disabled={fetchReturnOrderMutation.isPending || requestRmaMutation.isPending || processReturnMutation.isPending}
-                            onClick={handleConfirmReturn}
-                          >
-                            {fetchReturnOrderMutation.isPending || requestRmaMutation.isPending || processReturnMutation.isPending ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin ml-2" />
-                                جاري المعالجة...
-                              </>
-                            ) : (
-                              <>
-                                <RotateCcw className="h-4 w-4 ml-2" />
-                                إتمام الاسترجاع
-                              </>
-                            )}
-                          </Button>
+        {/* الأزرار */}
 
-                          <Button
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => setSelectedItems(null)}
-                            disabled={selectedItems === null}
-                          >
-                            الغاء
-                          </Button>
-                        </div>
+        <div className="space-y-3">
+          <Button
+            className="w-full"
+            size="lg"
+            disabled={fetchReturnOrderMutation.isPending || requestRmaMutation.isPending || processReturnMutation.isPending}
+            onClick={handleConfirmReturn}
+          >
+            {fetchReturnOrderMutation.isPending || requestRmaMutation.isPending || processReturnMutation.isPending ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin ml-2" />
+                جاري المعالجة...
+              </>
+            ) : (
+              <>
+                <RotateCcw className="h-4 w-4 ml-2" />
+                إتمام الاسترجاع
+              </>
+            )}
+          </Button>
+
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setSelectedItems(null)}
+            disabled={selectedItems === null}
+          >
+            الغاء
+          </Button>
+        </div>
       </div>
 
       {/* Confirmation Dialog */}
-      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog({ open })}>
+      {/* <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog({ open })}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>تأكيد الاسترجاع</AlertDialogTitle>
@@ -724,76 +787,82 @@ console.log("returnData:", returnData);
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirm}
-              disabled={confirmReturnMutation.isPending}
-            >
-              {confirmReturnMutation.isPending ? "جاري الاسترجاع..." : "تأكيد الاسترجاع"}
-            </AlertDialogAction>
+            <AlertDialogAction asChild>
+  <Button onClick={handleConfirm}>تأكيد</Button>
+</AlertDialogAction>
+
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog> */}
       <AlertDialog open={finalConfirm} onOpenChange={setFinalConfirm}>
-      <AlertDialogContent>
-  <AlertDialogHeader>
-    <AlertDialogTitle className="text-right">تأكيد العملية</AlertDialogTitle>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-right">تأكيد العملية</AlertDialogTitle>
 
-    <AlertDialogDescription className="text-right">
-      <div className="mt-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2">
+            <AlertDialogDescription asChild>
+              <div className="text-right">
 
-        {/* خط واحد: عنوان يمين + قيمة شمال */}
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">رقم الفاتورة:</span>
-          <span className="font-medium">{currentReturn?.qrCode}</span>
-        </div>
+                <div className="mt-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2">
 
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">اسم العميل:</span>
-          <span className="font-medium">{currentReturn?.customerName}</span>
-        </div>
+                  {/* خط واحد: عنوان يمين + قيمة شمال */}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">رقم الفاتورة:</span>
+                    <span className="font-medium">{currentReturn?.qrCode}</span>
+                  </div>
 
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">رقم الهاتف:</span>
-          <span className="font-medium">{currentReturn?.customerPhone}</span>
-        </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">اسم العميل:</span>
+                    <span className="font-medium">{currentReturn?.customerName}</span>
+                  </div>
 
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">مبلغ الاسترجاع:</span>
-          <span className="font-medium">{currentReturn?.totalAmount}</span>
-        </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">رقم الهاتف:</span>
+                    <span className="font-medium">{currentReturn?.customerPhone}</span>
+                  </div>
 
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">طريقة الدفع:</span>
-          <span className="font-medium">{currentReturn?.paymentMethod}</span>
-        </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">مبلغ الاسترجاع:</span>
+                    <span className="font-medium">{currentReturn?.totalAmount}</span>
+                  </div>
 
-      </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">طريقة الدفع:</span>
+                    <span className="font-medium">{currentReturn?.paymentMethod}</span>
+                  </div>
 
-      <p className="mt-4">عند تأكيد العملية سيتم:</p>
+                </div>
 
-      <ul className="mt-3 list-disc pr-5 space-y-1">
-        <li>إنشاء عملية استرجاع للمنتجات المحددة</li>
-        <li>معالجة عملية استرداد المبلغ</li>
-        <li>تحديث حالة الفاتورة</li>
-        <li>إصدار إشعار دائن (إن لزم)</li>
-      </ul>
-    </AlertDialogDescription>
-  </AlertDialogHeader>
+                <p className="mt-4">عند تأكيد العملية سيتم:</p>
 
-  <AlertDialogFooter>
-    <AlertDialogCancel>رجوع</AlertDialogCancel>
+                <ul className="mt-3 list-disc pr-5 space-y-1">
+                  <li>إنشاء عملية استرجاع للمنتجات المحددة</li>
+                  <li>معالجة عملية استرداد المبلغ</li>
+                  <li>تحديث حالة الفاتورة</li>
+                  <li>إصدار إشعار دائن (إن لزم)</li>
+                </ul>
 
-    <AlertDialogAction
-      onClick={() => {
-        setFinalConfirm(false);
-      }}
-    >
-      تأكيد
-    </AlertDialogAction>
-  </AlertDialogFooter>
-</AlertDialogContent>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
 
-</AlertDialog>
+          <AlertDialogFooter>
+            <AlertDialogCancel>رجوع</AlertDialogCancel>
+
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirm(); // ← مهم جداً
+              }}
+              disabled={confirmReturnMutation.isPending}
+            >
+              {confirmReturnMutation.isPending ? "جاري التأكيد..." : "تأكيد"}
+            </AlertDialogAction>
+
+          </AlertDialogFooter>
+        </AlertDialogContent>
+
+
+      </AlertDialog>
 
     </PageLayout>
   );

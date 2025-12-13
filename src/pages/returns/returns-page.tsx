@@ -6,13 +6,23 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { RotateCcw, Scan, Clock, CheckCircle, XCircle, AlertTriangle, ScanBarcode } from "lucide-react";
+import { RotateCcw, Scan, Clock, CheckCircle, XCircle, AlertTriangle, ScanBarcode, Minus, ShoppingCart, Package, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import EmptyState from "@/components/common/empty-state";
 import { confirmReturn, lookupInvoice, requestRma, selectItmeToReturn, selectItmeToReplace, confirmReplace } from "@/services/return";
+import { getStoreBySlug } from "@/services/stores";
+import { getProductByBartcode } from "@/services/cashier";
+import SixPointsIcon from "@/components/ui/SixPointsIcon";
 
+interface CartItem {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+  barcode?: string;
+}
 interface ReturnOrder {
   id: number;
   qrCode: string;
@@ -39,19 +49,18 @@ export default function ReturnsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const scannerInputRef = useRef<HTMLInputElement>(null);
-  const [replaceDailog,setReplaceDailog] = useState<boolean>(false)
+  const [replaceDialog,setReplaceDialog] = useState<boolean>(false)
   const [currentReturn, setCurrentReturn] = useState<object | null>(null);
+  const [productReplaceId,setProductReplaceId] = useState<number | null>(null)
+  const [currentReplace,setCurrentReplace] = useState<any[]> ([])
   const [scannerInput, setScannerInput] = useState("");
   const [selectedItems, setSelectedItems] = useState<number | null>(null);
   const [finalConfirm, setFinalConfirm] = useState<boolean>(false);
-
+  const [isScanning, setIsScanning] = useState(false);
   const [rmaId, setRmaId] = useState<number | null>(null);
-  const [confirmDialog, setConfirmDialog] = useState<{
-    open: boolean;
-    item?: ReturnOrderItem;
-  }>({ open: false });
+  const [barcodeInput, setBarcodeInput] = useState("");
   const [returnData, setReturnData] = useState({});
-
+  const [cart, setCart] = useState<CartItem[]>([]);
   // const [rmaType, setRmaType] = useState<'return' | 'replace'>('return');
   const [rmaType, setRmaType] = useState('select');
 
@@ -180,7 +189,7 @@ export default function ReturnsPage() {
       });
 
       setScannerInput("");
-      setConfirmDialog({ open: false });
+      
     },
     onError: (error: Error) => {
       toast({
@@ -207,11 +216,13 @@ export default function ReturnsPage() {
     onSuccess: (data) => {
       // تحديث بيانات الاستبدال الحالية
       if (currentReplace) {
-        const updatedItems = currentReplace.items.map((item: any) =>
-          item.id === data.itemId ? { ...item, isReplaced: true } : item
-        );
-
-        setCurrentReplace({ ...currentReplace, items: updatedItems });
+        setCurrentReplace(prev =>
+          prev.map(item =>
+            item.id === data.product_id
+              ? { ...item, isReplaced: true }
+              : item
+          )
+        );        
       }
 
       toast({
@@ -220,7 +231,7 @@ export default function ReturnsPage() {
       });
 
       setScannerInput("");
-      setConfirmDialog({ open: false });
+      
     },
 
     onError: (error: any) => {
@@ -231,6 +242,166 @@ export default function ReturnsPage() {
       });
     },
   });
+  //Get store Date
+   // Fetch user store data
+   const userStoreSlug: string = localStorage.getItem("userSlug")
+   const { data: store, isLoading: storeLoading, error: storeError } = useQuery({
+     queryKey: ['/stores', userStoreSlug],
+     queryFn: () => getStoreBySlug(userStoreSlug),
+     enabled: !!userStoreSlug,
+   });
+
+   const storeLatitude = store?.latitude ?? null;
+   const storeLongitude = store?.longitude ?? null;
+   console.log("fetched current store", store)
+   
+   console.log(storeLatitude, storeLongitude)
+   //Get product mutation
+   const findProductMutation = useMutation({
+    mutationFn: async (payload) => {
+      console.log("➡️ Mutation started with:", payload);
+      const response = await getProductByBartcode(payload);
+      console.log("✅ Product fetched:", response);
+      
+      return response;
+    },
+    onSuccess: (data) => {
+      const product = data.product;
+      setProductReplaceId(data.product.id)
+      setCurrentReplace(prev => {
+        const exists = prev.find(p => p.id === data.product.id);
+        if (exists) {
+          return prev.map(p =>
+            p.id === data.product.id
+              ? { ...p, quantity: (p.quantity || 1) + 1 }
+              : p
+          );
+        }
+        return [...prev, { ...data.product, quantity: 1 }];
+      });
+      console.log("🎉 onSuccess fired:", product);
+      addToCart(product);
+      
+      const productDate = {
+        "product_id": data.product.id,
+        "quantity": 1,
+        "latitude": storeLatitude,
+        "longitude": storeLongitude,
+        "notes": data.product.description
+      }
+      console.log("Product data that will add in cart", productDate)
+      
+      setBarcodeInput("");
+      setIsScanning(false);
+      toast({
+        title: "تم إضافة المنتج",
+        description: `تم إضافة ${product.name} للسلة`,
+      });
+    },
+    onError: (error) => {
+      console.log("❌ onError fired:", error);
+      setBarcodeInput("");
+      setIsScanning(false);
+      toast({
+        title: "المنتج غير موجود",
+        description: "لم يتم العثور على منتج بهذا الباركود",
+        variant: "destructive",
+      });
+    },
+  });
+  console.log("Replace Product Id : ", productReplaceId)
+  console.log("Current Replace Product: ", currentReplace)
+
+
+  // Add to cart
+   // Cart operations
+   const addToCart = (product: any) => {
+    setCart(prev => {
+      const existingItem = prev.find(item => item.id === product.id);
+
+      if (existingItem) {
+        // If item already exists, just increment quantity
+        return prev.map(item =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      } else {
+        // Add new item with extra details
+        return [
+          ...prev,
+          {
+            id: product.id,
+            name: product.name,
+            price: parseFloat(product.pricing.final_price),
+            quantity: 1,
+            barcode: product.barcode,
+            image_url: product.image_url || "",             // 🆕 image
+            loyalty_points: product.loyalty_points || 0,     // 🆕 points
+            weight: product.weight || "",                    // 🆕 weight
+          },
+        ];
+      }
+    });
+  };
+
+  // Replace quantity
+  const updateQuantity = (
+    cartItemId: number,
+    newQuantity: number
+  ) => {
+
+    if (newQuantity <= 0) {
+      removeFromCart(cartItemId);
+
+      console.log("Deleting cart item:", cartItemId);
+
+      return;
+    }
+    // تحديث الواجهة
+    setCart(prev =>
+      prev.map(item =>
+        item.cart_item_id === cartItemId
+          ? { ...item, quantity: newQuantity }
+          : item
+      )
+    );
+  };
+
+  const removeFromCart = (id: number) => {
+    setCart(prev => prev.filter(item => item.id !== id));
+
+    
+
+
+  };
+  // Handle barcode scanning
+  const handleBarcodeSubmit = () => {
+    if (!barcodeInput.trim()) return;
+
+    const input = barcodeInput.trim();
+
+   
+
+    
+      // Regular barcode scanning
+      if (rmaType === "replace") {
+        setIsScanning(true);
+        // ✅ Correct payload for your backend
+        const payload = {
+          barcode: input,
+          latitude: storeLatitude ?? 29.9601,
+          longitude: storeLongitude ?? 31.2594,
+        };
+
+        console.log("📦 Payload sent:", payload);
+
+        // ✅ Fixed mutation call to send payload properly
+        findProductMutation.mutate(payload);
+      
+      
+    }
+  };
 
 
   const handleScannerSubmit = (e: React.FormEvent) => {
@@ -251,7 +422,7 @@ export default function ReturnsPage() {
       );
 
       if (item) {
-        setConfirmDialog({ open: true, item });
+        
       } else {
         toast({
           title: "منتج غير صالح",
@@ -263,7 +434,7 @@ export default function ReturnsPage() {
 
     setScannerInput("");
   };
-  console.log("confirmDialog:", confirmDialog);
+  
   console.log("returnData:", returnData);
   const handleConfirmReturn = () => {
     if (rmaType === "return") {
@@ -279,17 +450,18 @@ export default function ReturnsPage() {
       processReturnMutation.mutate(productData);
 
     } else if (rmaType === "replace") {
-      setReplaceDailog(true)
+      setReplaceDialog(true)
       const replaceData = {
         "product_to_return":selectedItems,
         "quantity_of_returned_product": returnData[selectedItems]?.qty,
 
-        "product_replaced": 4,
-        "quantity_of_replaced_product": 1,
+        "product_replaced": productReplaceId,
+        "quantity_of_replaced_product": cart[0].quantity,
 
         "reason": returnData[selectedItems]?.reason,
         "notes": returnData[selectedItems]?.notes
       }
+      console.log("Current Replace Request Data: ", replaceData)
     }
   };
 
@@ -357,7 +529,6 @@ export default function ReturnsPage() {
     setCurrentReturn(null);
     setScannerInput("");
     setSelectedItems(null);
-    setConfirmDialog({ open: false });
     setReturnData({});
     setRmaId(null);
     setRmaType("select");
@@ -766,34 +937,6 @@ export default function ReturnsPage() {
           </Button>
         </div>
       </div>
-
-      {/* Confirmation Dialog */}
-      {/* <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog({ open })}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>تأكيد الاسترجاع</AlertDialogTitle>
-            <AlertDialogDescription>
-              هل أنت متأكد من استرجاع المنتج التالي؟
-              <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div className="font-medium">{confirmDialog.item?.productName}</div>
-                <div className="text-sm text-muted-foreground">
-                  الكمية: {confirmDialog.item?.quantity} × {confirmDialog.item?.originalPrice.toFixed(2)} ر.س
-                </div>
-                <div className="text-sm font-medium text-green-600">
-                  مبلغ الاسترجاع: {((confirmDialog.item?.originalPrice || 0) * (confirmDialog.item?.quantity || 0)).toFixed(2)} ر.س
-                </div>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction asChild>
-  <Button onClick={handleConfirm}>تأكيد</Button>
-</AlertDialogAction>
-
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog> */}
       <AlertDialog open={finalConfirm} onOpenChange={setFinalConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -862,6 +1005,234 @@ export default function ReturnsPage() {
         </AlertDialogContent>
 
 
+      </AlertDialog>
+        {/* Replace Product Dialog */}
+        <AlertDialog open={replaceDialog} onOpenChange={setReplaceDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-right text-xl">
+              اختر منتجات بديلة للاستبدال
+            </AlertDialogTitle>
+            
+            <AlertDialogDescription asChild>
+              <div className="text-right">
+                {/* Original Product Info */}
+                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <h3 className="font-medium mb-2">المنتج الأصلي:</h3>
+                  {selectedItems && currentReturn?.items.find(item => item.productId === selectedItems) && (
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={currentReturn.items.find(item => item.productId === selectedItems).productImage}
+                        alt="product"
+                        className="w-16 h-16 rounded-md object-cover border"
+                      />
+                      <div>
+                        <p className="font-medium">
+                          {currentReturn.items.find(item => item.productId === selectedItems).productName}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          الكمية: {returnData[selectedItems]?.qty || 1}
+                        </p>
+                        <span className="font-medium text-primary">{currentReturn.totalAmount.toFixed(2)} ر.س</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Scanner Section for Replacement Product */}
+                <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <h3 className="font-medium mb-3">امسح كود المنتج البديل</h3>
+                  
+                  <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <ScanBarcode className="h-5 w-5" />
+                          مسح المنتجات
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="امسح باركود المنتج..."
+                            value={barcodeInput}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setBarcodeInput(val);
+                              setOrdValue(val);
+                              console.log("order ORD: ", ordValue)
+                            }}
+
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                handleBarcodeSubmit();
+                              }
+                            }}
+                            className="flex-1 text-lg p-4"
+                            disabled={isScanning}
+                          />
+                          <Button
+                            onClick={handleBarcodeSubmit}
+                            disabled={isScanning || !barcodeInput.trim()}
+                            className="px-6"
+                          >
+                            {isScanning ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <ScanBarcode className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                   {/* Shopping Cart */}
+                   <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between">
+                          <span className="flex items-center gap-2">
+                            <ShoppingCart className="h-5 w-5" />
+                            سلة التسوق
+                          </span>
+                          
+                        </CardTitle>
+                      </CardHeader>
+
+                      <CardContent>
+                        {currentReplace.length === 0 ? (
+                          <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                            <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                            <p>لا توجد منتجات في السلة</p>
+                            <p className="text-sm">امسح باركود المنتج لإضافته</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {currentReplace.map((item) => (
+
+<Card key={item.id} className="p-4">
+<div className="flex items-center justify-between gap-4">
+
+  {/* Product Image */}
+  {item.image_url && (
+    <img
+      src={item.image_url}
+      alt={item.name}
+      className="w-16 h-16 rounded-md object-cover border"
+    />
+  )}
+
+  {/* Product Info */}
+  <div className="flex-1">
+    <h4 className="font-medium text-gray-900 dark:text-white">
+      {item.name}
+    </h4>
+
+    {/* Weight */}
+    {item.weight && (
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        {item.weight * 1000} جرام
+      </p>
+    )}
+
+    {/* Price */}
+    <p className="text-sm text-gray-600 dark:text-gray-400">
+      {Number(item.pricing.final_price).toLocaleString("ar-SA")} ر.س للقطعة
+    </p>
+
+    {/* Barcode */}
+    {item.barcode && (
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        الباركود: {item.barcode}
+      </p>
+    )}
+
+    {/* Loyalty Points */}
+    {item.loyalty_points > 0 && (
+      <div className="flex items-center gap-1 mt-1 text-green-600 dark:text-green-400 text-sm">
+        <SixPointsIcon />
+        <span>{item.loyalty_points} نقاط</span>
+      </div>
+    )}
+  </div>
+
+  {/* Quantity + Total + Remove */}
+  <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          updateQuantity(item.cart_item_id, item.id, item.quantity - 1)
+        }
+      >
+        <Minus className="h-3 w-3" />
+      </Button>
+
+      <span className="font-medium w-8 text-center">
+        {item.quantity}
+      </span>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          updateQuantity(item.cart_item_id, item.id, item.quantity + 1)
+        }
+      >
+        <Plus className="h-3 w-3" />
+      </Button>
+    </div>
+
+    <p className="font-bold text-lg">
+      {(item.pricing.final_price * item.quantity).toLocaleString("ar-SA")} ر.س
+    </p>
+
+    <Button
+      variant="destructive"
+      size="sm"
+      onClick={() => removeFromCart(item.cart_item_id)}
+    >
+      <Trash2 className="h-5 w-5" />
+    </Button>
+  </div>
+</div>
+</Card>
+
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                </div>
+
+                {/* Summary */}
+                <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="flex justify-between items-center text-lg font-bold">
+                    <span>الإجمالي</span>
+                    <span className="text-green-600">47.25 ر.س</span>
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="flex-1">إلغاء</AlertDialogCancel>
+            <AlertDialogAction 
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              onClick={(e) => {
+                e.preventDefault();
+                // Handle replacement confirmation
+                toast({
+                  title: "تم الاستبدال",
+                  description: "تم استبدال المنتج بنجاح",
+                });
+                setReplaceDialog(false);
+              }}
+            >
+              تأكيد الاختيار
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
 
     </PageLayout>

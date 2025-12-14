@@ -65,6 +65,7 @@ export default function ReturnsPage() {
   const [rmaType, setRmaType] = useState('select');
 
   console.log("Opreation state: ", rmaType)
+  console.log("Cart : ", cart )
   // Auto-focus scanner input
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -346,35 +347,26 @@ export default function ReturnsPage() {
   };
 
   // Replace quantity
-  const updateQuantity = (
-    cartItemId: number,
-    newQuantity: number
-  ) => {
-
+  const updateReplaceQuantity = (productId: number, newQuantity: number) => {
     if (newQuantity <= 0) {
-      removeFromCart(cartItemId);
-
-      console.log("Deleting cart item:", cartItemId);
-
+      setCurrentReplace(prev => prev.filter(p => p.id !== productId));
       return;
     }
-    // تحديث الواجهة
-    setCart(prev =>
-      prev.map(item =>
-        item.cart_item_id === cartItemId
-          ? { ...item, quantity: newQuantity }
-          : item
+  
+    setCurrentReplace(prev =>
+      prev.map(p =>
+        p.id === productId
+          ? { ...p, quantity: newQuantity }
+          : p
       )
     );
   };
+  
 
-  const removeFromCart = (id: number) => {
-    setCart(prev => prev.filter(item => item.id !== id));
-
-    
-
-
+  const removeReplaceItem = (productId: number) => {
+    setCurrentReplace(prev => prev.filter(p => p.id !== productId));
   };
+  
   // Handle barcode scanning
   const handleBarcodeSubmit = () => {
     if (!barcodeInput.trim()) return;
@@ -451,12 +443,15 @@ export default function ReturnsPage() {
 
     } else if (rmaType === "replace") {
       setReplaceDialog(true)
+      let replaceQuentity = currentReplace.map(p => ({
+        quantity: p.quantity
+      }))
       const replaceData = {
         "product_to_return":selectedItems,
         "quantity_of_returned_product": returnData[selectedItems]?.qty,
 
         "product_replaced": productReplaceId,
-        "quantity_of_replaced_product": cart[0].quantity,
+        "quantity_of_replaced_product": replaceQuentity[0].quantity,
 
         "reason": returnData[selectedItems]?.reason,
         "notes": returnData[selectedItems]?.notes
@@ -464,7 +459,10 @@ export default function ReturnsPage() {
       console.log("Current Replace Request Data: ", replaceData)
     }
   };
-
+ 
+  const totalReplacePrice = currentReplace.length
+  ? currentReplace[0].pricing.final_price * currentReplace[0].quantity
+  : 0;
   const confirmReturnMutation = useMutation({
     mutationFn: async () => {
       try {
@@ -1160,9 +1158,9 @@ export default function ReturnsPage() {
       <Button
         variant="outline"
         size="sm"
-        onClick={() =>
-          updateQuantity(item.cart_item_id, item.id, item.quantity - 1)
-        }
+        onClick={() => updateReplaceQuantity(item.id, item.quantity - 1)}
+
+        
       >
         <Minus className="h-3 w-3" />
       </Button>
@@ -1174,9 +1172,8 @@ export default function ReturnsPage() {
       <Button
         variant="outline"
         size="sm"
-        onClick={() =>
-          updateQuantity(item.cart_item_id, item.id, item.quantity + 1)
-        }
+        onClick={() => updateReplaceQuantity(item.id, item.quantity + 1)}
+
       >
         <Plus className="h-3 w-3" />
       </Button>
@@ -1189,7 +1186,8 @@ export default function ReturnsPage() {
     <Button
       variant="destructive"
       size="sm"
-      onClick={() => removeFromCart(item.cart_item_id)}
+      onClick={() => removeReplaceItem(item.id)}
+
     >
       <Trash2 className="h-5 w-5" />
     </Button>
@@ -1208,7 +1206,8 @@ export default function ReturnsPage() {
                 <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                   <div className="flex justify-between items-center text-lg font-bold">
                     <span>الإجمالي</span>
-                    <span className="text-green-600">47.25 ر.س</span>
+                    <span className="text-green-600">{totalReplacePrice} ر.س</span>
+                    
                   </div>
                 </div>
               </div>

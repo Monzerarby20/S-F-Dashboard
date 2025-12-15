@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { RotateCcw, Scan, Clock, CheckCircle, XCircle, AlertTriangle, ScanBarcode, Minus, ShoppingCart, Package, Plus, Trash2 } from "lucide-react";
+import { RotateCcw, Scan, Clock, CheckCircle, XCircle, AlertTriangle, ScanBarcode, Minus, ShoppingCart, Package, Plus, Trash2 , Wallet, CreditCard, Loader2, CheckCircle2} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
@@ -15,6 +15,7 @@ import { confirmReturn, lookupInvoice, requestRma, selectItmeToReturn, selectItm
 import { getStoreBySlug } from "@/services/stores";
 import { getProductByBartcode } from "@/services/cashier";
 import SixPointsIcon from "@/components/ui/SixPointsIcon";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface CartItem {
   id: number;
@@ -62,6 +63,23 @@ export default function ReturnsPage() {
   const [returnData, setReturnData] = useState({});
   const [cart, setCart] = useState<CartItem[]>([]);
   // const [rmaType, setRmaType] = useState<'return' | 'replace'>('return');
+  const [showPopup, setShowPopup] = useState(false);
+const [step, setStep] = useState<"select" | "cash" | "processing" | "success">("select");
+const [paymentMethod, setPaymentMethod] = useState<"cash" | "visa" | null>(null);
+const [paidAmount, setPaidAmount] = useState<number | "">("");
+const [change, setChange] = useState(0);
+const [returnTotal,setReturnTotal] = useState<number | null>(null)
+const [replaceTotal,setReplaceTotal] = useState<number | null>(null)
+
+// const replaceTotal = replacedProductTotal;   // سعر المنتج البديل
+// const returnTotal  = returnData.pricing.finalprice;   // سعر المرتجع
+console.log("Return Data ",returnData)
+const total = Math.max(
+  (replaceTotal ?? 0) - (returnTotal ?? 0),
+  0
+);
+
+
   const [rmaType, setRmaType] = useState('select');
 
   console.log("Opreation state: ", rmaType)
@@ -161,6 +179,78 @@ export default function ReturnsPage() {
       });
     },
   });
+
+  //Rest 
+  const resetReplaceFlow = () => {
+    setReplaceDialog(false);
+    setShowPopup(false);
+    setStep("select");
+    setPaymentMethod(null);
+    setPaidAmount("");
+    setChange(0);
+  
+    setCurrentReplace([]);
+    setProductReplaceId(null);
+    setReplaceTotal(null);
+    setReturnTotal(null);
+  
+    setSelectedItems(null);
+    setReturnData({});
+  };
+ 
+  
+
+    
+
+
+  //Confirm Replace
+  const confirmReplaceMutation = useMutation({
+    mutationFn: async (amountPaidData: object) => {
+      try {
+        const response = await confirmReplace(
+          rmaId as number,
+          amountPaidData
+        );
+        return response;
+      } catch (error: any) {
+        throw new Error(
+          error.response?.data?.message ||
+            "فشل في تأكيد الاستبدال"
+        );
+      }
+    },
+  
+    onSuccess: (data) => {
+      // لو عندك بيانات الاستبدال الحالية وعدلتها بعد التأكيد
+      if (currentReplace) {
+        setCurrentReplace({
+          ...currentReplace,
+          isConfirmed: true,
+        });
+      }
+  
+      toast({
+        title: "تم التأكيد",
+        description: "تم تأكيد الاستبدال بنجاح",
+      });
+  
+      // لو محتاج تمسح input أو state
+      // 🔥 Reset كامل بعد نجاح العملية
+    resetReplaceFlow();
+    resetReturn(); // لو عايز ترجع لأول الصفحة  
+      
+    },
+  
+    onError: (error: Error) => {
+      toast({
+        title: "خطأ في التأكيد",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  
   // test select item return
   console.log("selectedItems:", selectedItems);
   console.log("rmaId:", rmaId);
@@ -225,7 +315,8 @@ export default function ReturnsPage() {
           )
         );        
       }
-
+      setShowPopup(true)
+      setReplaceDialog(false);
       toast({
         title: "تم إضافة المنتج للاستبدال",
         description: "تم إضافة المنتج المطلوب لاستبدال بنجاح",
@@ -439,27 +530,41 @@ export default function ReturnsPage() {
         "notes": returnData[selectedItems]?.notes,
       }
       console.log("productData:", productData);
+      
       processReturnMutation.mutate(productData);
 
     } else if (rmaType === "replace") {
       setReplaceDialog(true)
-      let replaceQuentity = currentReplace.map(p => ({
-        quantity: p.quantity
-      }))
-      const replaceData = {
-        "product_to_return":selectedItems,
-        "quantity_of_returned_product": returnData[selectedItems]?.qty,
-
-        "product_replaced": productReplaceId,
-        "quantity_of_replaced_product": replaceQuentity[0].quantity,
-
-        "reason": returnData[selectedItems]?.reason,
-        "notes": returnData[selectedItems]?.notes
-      }
-      console.log("Current Replace Request Data: ", replaceData)
+     
     }
   };
+  let replaceQuentity = currentReplace.map(p => ({
+    quantity: p.quantity
+  }))
+  const handleSelectReplaceItem = ()=> {
+  const replaceData = {
+    "product_to_return":selectedItems,
+    "quantity_of_returned_product": returnData[selectedItems]?.qty,
+
+    "product_replaced": productReplaceId,
+    "quantity_of_replaced_product": replaceQuentity[0].quantity,
+
+    "reason": returnData[selectedItems]?.reason,
+    "notes": returnData[selectedItems]?.notes
+  }
+  setReturnTotal(
+    currentReturn.items[0].originalPrice * returnData[selectedItems]?.qty
+  );
+  // setReturnTotal(currentReturn.totalAmount)
+  console.log("Current Replace Request Data: ", replaceData)
+  setReplaceTotal(totalReplacePrice)
+   // Handle confirm select item to replace
+console.log("Current Replace Request Data: ", replaceData)
+
+processReplaceMutation.mutate(replaceData)
+}
  
+console.log("Return Price ",returnTotal)
   const totalReplacePrice = currentReplace.length
   ? currentReplace[0].pricing.final_price * currentReplace[0].quantity
   : 0;
@@ -482,6 +587,7 @@ export default function ReturnsPage() {
 
       // Close the final confirm dialog
       setFinalConfirm(false);
+      
       setTimeout(() => {
         resetReturn()
       }, 100)
@@ -495,7 +601,55 @@ export default function ReturnsPage() {
       });
     },
   });
+  // Popup Functions
+  const handleProcessOrder2 = () => {
+    if (!paymentMethod) return;
+    
+    if (paymentMethod === "cash") {
+      setStep("cash");
+    } else if (paymentMethod === "visa") {
+      setStep("processing");
+      // simulate processing
+      setTimeout(() => {
+        setStep("success");
+      }, 2000);
+    } else if (step === "cash") {
+      setStep("success");
+    }
+  };
+  const handleCancel = () => {
+    setStep("select");
+    setPaymentMethod(null);
+    setPaidAmount("");
+    setShowPopup(false);
+  };
+  const handleProcessOrder3 = () => {
+    if (step === "cash") {
+      // هنا المستخدم في شاشة الكاش وضغط "إصدار الفاتورة"
+      if (!paidAmount || paidAmount < total) {
+        toast({
+          title: "الرجاء ادخال مبلغ مناسب",
+          description: "ادخل مبلغ يعادل السعر المناسب",
+          variant: "destructive",
+        });
+        return;
+      }
+      // setPaidAmount(paidAmount)
+      setStep("success"); // لو تمام، يروح لشاشة النجاح
+    }
+    // setChange(paid - total);
 
+  };
+  const handleProcessOrder = () => {
+    const payload = {
+      "amount_paid": String(paidAmount)
+    }
+    console.log("Amount Paid: ",payload)
+    confirmReplaceMutation.mutate(payload);
+
+    console.log("I'm here in handleprocessorder")
+  };
+ 
 
   const handleConfirm = () => {
     console.log("here from confirm")
@@ -531,10 +685,12 @@ export default function ReturnsPage() {
     setRmaId(null);
     setRmaType("select");
     setFinalConfirm(false);
-    // لو في أي حقول أو ورق مربوط بالطلب نظّفها برضو
-    queryClient.clear(); // optional لو عايز تمسح أي data cached
+  
+    setCurrentReplace([]);
+    setCart([]);
+  
+    queryClient.removeQueries(); // أفضل من clear()
   };
-
 
   return (
     <PageLayout>
@@ -1056,8 +1212,6 @@ export default function ReturnsPage() {
                             onChange={(e) => {
                               const val = e.target.value;
                               setBarcodeInput(val);
-                              setOrdValue(val);
-                              console.log("order ORD: ", ordValue)
                             }}
 
                             onKeyPress={(e) => {
@@ -1220,12 +1374,7 @@ export default function ReturnsPage() {
               className="flex-1 bg-green-600 hover:bg-green-700"
               onClick={(e) => {
                 e.preventDefault();
-                // Handle replacement confirmation
-                toast({
-                  title: "تم الاستبدال",
-                  description: "تم استبدال المنتج بنجاح",
-                });
-                setReplaceDialog(false);
+                handleSelectReplaceItem();
               }}
             >
               تأكيد الاختيار
@@ -1233,6 +1382,185 @@ export default function ReturnsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AnimatePresence>
+                {showPopup && (
+                  <>
+                    {/* الخلفية */}
+                    <motion.div
+                      className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+                      onClick={() => setShowPopup(false)}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    />
+
+                    {/* المحتوى */}
+                    <motion.div
+                      className="fixed top-1/2 left-1/2 w-[90%] max-w-md bg-white rounded-2xl shadow-lg p-6 text-right z-50"
+                      initial={{ opacity: 0, scale: 0.9, y: "-50%", x: "-50%" }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.25 }}
+                    >
+                      {step === "select" && (
+                        <>
+                          <h2 className="text-xl font-semibold mb-1">اختر وسيلة الدفع</h2>
+                          <p className="text-gray-500 mb-4 text-sm">
+                            اختر طريقة الدفع المناسبة لإتمام العملية
+                          </p>
+
+                          <div className="space-y-3">
+                            {/* نقدي */}
+                            <label className="flex items-center justify-between border rounded-lg px-4 py-3 cursor-pointer hover:border-primary transition">
+                              <input
+                                type="radio"
+                                name="payment"
+                                value="cash"
+                                checked={paymentMethod === "cash"}
+                                onChange={() => setPaymentMethod("cash")}
+                                className="accent-primary"
+                              />
+                              <div className="flex items-center gap-2">
+                                <Wallet size={18} />
+                                <span className="font-medium">نقدي</span>
+                              </div>
+                            </label>
+
+                            {/* بطاقة ائتمانية */}
+                            <label className="flex items-center justify-between border rounded-lg px-4 py-3 cursor-pointer hover:border-primary transition">
+                              <input
+                                type="radio"
+                                name="payment"
+                                value="visa"
+                                checked={paymentMethod === "visa"}
+                                onChange={() => setPaymentMethod("visa")}
+                                className="accent-primary"
+                              />
+                              <div className="flex items-center gap-2">
+                                <CreditCard size={18} />
+                                <span className="font-medium">بطاقة ائتمانية</span>
+                              </div>
+                            </label>
+                          </div>
+                        </>
+                      )}
+
+                      {/* الأزرار */}
+                      {step === "select" && (
+                        <>
+                          <div className="flex justify-between mt-6">
+                            <button
+                              onClick={() => setShowPopup(false)}
+                              className="border border-gray-300 text-gray-600 px-5 py-2 rounded-lg hover:bg-gray-100 transition"
+                            >
+                              إلغاء
+                            </button>
+                            <button
+                              onClick={handleProcessOrder2}
+                              className="text-primary-foreground hover:bg-primary/90 text-white px-5 py-2 rounded-lg bg-primary transition"
+                            >
+                              تأكيد
+                            </button>
+                          </div>
+                        </>
+                      )}
+
+                      {step === "cash" && (
+                        <>
+
+                          <h2 className="text-xl font-semibold mb-1">إتمام الدفع النقدي</h2>
+                          <p className="text-gray-500 mb-4 text-sm">أدخل المبلغ المدفوع</p>
+                          <div className="bg-green-100 text-green-600 px-4 py-2 rounded-lg font-semibold text-center mb-4">
+  إجمالي الفرق: {total.toFixed(2)} ﷼
+</div>
+
+
+                          <input
+                            type="number"
+                            className="w-full border rounded-lg px-3 py-2 mb-3 text-right focus:outline-none focus:ring-2 focus:ring-[#009689]"
+                            placeholder="المبلغ المدفوع"
+                            value={paidAmount}
+                            onChange={(e) => setPaidAmount(e.target.value)}
+                          />
+
+                          {paidAmount && (
+                            <p className="text-gray-700 font-medium text-right mb-2">
+                              الباقي:{" "}
+                              <span className="text-green-600">
+                                {paidAmount - total > 0 ? (paidAmount - total).toFixed(2) : 0} ﷼
+                              </span>
+                            </p>
+                          )}
+
+                          <div className="flex justify-between mt-6">
+                            <button
+                              onClick={handleCancel}
+                              className="border border-gray-300 text-gray-600 px-5 py-2 rounded-lg hover:bg-gray-100 transition"
+                            >
+                              إلغاء
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleProcessOrder3();
+                               
+                              }}
+                              className="bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg transition"
+                            >
+                              إصدار الفاتورة
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {/* === المرحلة 3: معالجة البطاقة === */}
+                      {step === "processing" && (
+                        <div className="flex flex-col items-center justify-center py-8">
+                          <Loader2 className="h-10 w-10 text-[#009689] animate-spin mb-4" />
+                          <p className="text-gray-700">جارٍ معالجة الدفع من جهاز البطاقة...</p>
+                          <p className="text-gray-400 text-sm mt-1">الرجاء الانتظار...</p>
+                          <button
+                            onClick={handleCancel}
+                            className="border border-gray-300 text-gray-600 px-5 py-2 rounded-lg mt-5 hover:bg-gray-100 transition"
+                          >
+                            إلغاء
+                          </button>
+                        </div>
+                      )} {step === "success" && (
+                        <div className="flex flex-col items-center justify-center py-8 space-y-3">
+                          <div className="bg-green-100 rounded-full p-3">
+                            <CheckCircle2 className="h-10 w-10 text-green-600" />
+                          </div>
+                          <h2 className="text-green-600 text-2xl font-bold">تم الدفع بنجاح!</h2>
+                          <p className="text-gray-600">المبلغ: {total} ﷼</p>
+
+                          {change > 0 && (
+                            <p className="text-gray-700 font-medium">
+                              الباقي: <span className="text-green-600">{change} ﷼</span>
+                            </p>
+                          )}
+
+                          <div className="flex justify-between w-full px-6 mt-4">
+                            <button
+                              onClick={handleCancel}
+                              className="border border-gray-300 text-gray-600 px-5 py-2 rounded-lg hover:bg-gray-100 transition"
+                            >
+                              إلغاء
+                            </button>
+                            <Button
+  onClick={handleProcessOrder}
+  disabled={confirmReplaceMutation.isPending}
+>
+  {confirmReplaceMutation.isPending ? "جاري المعالجة..." : "تأكيد الدفع"}
+</Button>
+
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+
+
 
     </PageLayout>
   );

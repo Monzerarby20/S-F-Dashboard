@@ -510,6 +510,8 @@ export default function CashierPOS() {
   //   );
   // }
 
+ 
+
   const handlePayment = async () => {
     try {
       if (!cart || cart.length === 0) {
@@ -542,7 +544,6 @@ export default function CashierPOS() {
         alert("المبلغ المدفوع غير كافٍ لإتمام العملية");
         return;
       }
-
       // 2️⃣ Validate cash payment
       const paymentPayload = {
         order_number: order.order_number,
@@ -663,9 +664,10 @@ export default function CashierPOS() {
     return cartSummary.reduce((total, item) => total + (item.unit_price * item.quantity), 0);
   };
   const total =
-  activeTab === "pos"
+  activeTab === "pos" || activeTab === "customer-orders"
     ? (calculateTotal() * 1.15)
-    : orderDataDetails?.qr_decoded?.totals?.grand_total;
+    : orderDataDetails?.qr_decoded?.totals?.grand_total
+  
   const handleProcessOrder = () => {
     console.log("I'm here in handleprocessorder")
 
@@ -892,6 +894,8 @@ export default function CashierPOS() {
     setPaidAmount("");
     setShowPopup(false);
   };
+  console.log("PaidAmount: ", paidAmount)
+  console.log("total: ", total)
 
   return (
     <div className="min-h-screen flex" dir="rtl">
@@ -1170,7 +1174,7 @@ export default function CashierPOS() {
                           <Button
                             className="w-full"
                             size="lg"
-                            disabled={cart.length === 0 || processOrderMutation.isPending}
+                            disabled={cartApi.length === 0 || processOrderMutation.isPending}
                             onClick={() => setShowPopup(true)}
                           >
                             {processOrderMutation.isPending ? (

@@ -18,6 +18,7 @@ import { checkoutProcess, getProductByBartcode, removeProduct, updateCartItem, g
 import SixPointsIcon from "@/components/ui/SixPointsIcon";
 import { getStoreBySlug } from "@/services/stores";
 import { motion, AnimatePresence } from "framer-motion";
+import { BarcodeScanner } from "@/components/common/BarcodeScanner";
 
 interface CartItem {
   id: number;
@@ -363,12 +364,12 @@ export default function CashierPOS() {
     setOrderData(null)
   }
   // Handle barcode scanning
-  const handleBarcodeSubmit = () => {
-    if (!barcodeInput.trim()) return;
+  const handleBarcodeSubmit = (input: string) => {
+    if (!input.trim()) return;
 
-    const input = barcodeInput.trim();
+    input = input.trim();
 
-    // Handle invoice (PDF) input
+    // 🧾 Invoice PDF
     if (input.endsWith(".pdf")) {
       setInvoiceUrl(input);
       toast({
@@ -378,45 +379,45 @@ export default function CashierPOS() {
       return;
     }
 
-    // Handle QR code scanning (for customer orders)
-    if (input.startsWith("QR-") && activeTab === "qr-verification") {
+    // 🔹 QR Verification tab (order QR)
+    if (activeTab === "qr-verification" && input.startsWith("QR-")) {
       setQrInput(input);
       fetchQROrderMutation.mutate(input);
-    } else {
-      // Regular barcode scanning
-      if (activeTab === "pos") {
-        setIsScanning(true);
+      return;
+    }
 
+    // 🛒 POS tab (regular product scan)
+    if (activeTab === "pos") {
+      setIsScanning(true);
 
-        // ✅ Correct payload for your backend
-        const payload = {
-          barcode: input,
-          latitude: storeLatitude ?? 29.9601,
-          longitude: storeLongitude ?? 31.2594,
-        };
+      const payload = {
+        barcode: input,
+        latitude: storeLatitude ?? 29.9601,
+        longitude: storeLongitude ?? 31.2594,
+      };
 
-        console.log("📦 Payload sent:", payload);
+      console.log("📦 Payload sent:", payload);
+      findProductMutation.mutate(payload);
+      return;
+    }
 
-        // ✅ Fixed mutation call to send payload properly
-        findProductMutation.mutate(payload);
-      } else if (activeTab === "customer-orders") {
-        if (input.startsWith("ORD")) {
-          getOrderMutation.mutate(input);
+    // 📦 Customer Orders tab
+    if (activeTab === "customer-orders" && input.startsWith("ORD")) {
+      getOrderMutation.mutate(input);
+      return;
+    }
 
-        }
-      }
-      // Handle QR verification scanning
-      else if (activeTab === "qr-verification" && currentOrder) {
-        setIsQRScanning(true);
+    // ✅ QR product scan inside QR verification
+    if (activeTab === "qr-verification" && currentOrder) {
+      setIsQRScanning(true);
 
-        // ✅ Make sure we send full object for QR order scan
-        scanProductMutation.mutate({
-          qrOrderId: currentOrder.id,
-          barcode: input,
-        });
-      }
+      scanProductMutation.mutate({
+        qrOrderId: currentOrder.id,
+        barcode: input,
+      });
     }
   };
+
 
 
 
@@ -795,47 +796,11 @@ export default function CashierPOS() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="flex gap-2">
-                          <Input
-                            type="text"
-                            placeholder="امسح باركود المنتج..."
-                            value={barcodeInput}
-                            onChange={(e) => {
-                              let value = e.target.value;
-
-                              // حروف + أرقام فقط
-                              value = value.replace(/[^a-zA-Z0-9]/g, "");
-
-                              // حد أقصى 20
-                              value = value.slice(0, 20);
-
-                              // إجبار قيمة الـ DOM (مهم مع scanner)
-                              e.target.value = value;
-
-                              setBarcodeInput(value);
-                              setOrdValue(value);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && barcodeInput.trim()) {
-                                handleBarcodeSubmit();
-                              }
-                            }}
-                            className="flex-1 text-lg p-4"
-                            disabled={isScanning}
-                          />
-
-                          <Button
-                            onClick={handleBarcodeSubmit}
-                            disabled={isScanning || !barcodeInput.trim()}
-                            className="px-6"
-                          >
-                            {isScanning ? (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <ScanBarcode className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
+                        <BarcodeScanner
+                          placeholder="امسح باركود المنتج..."
+                          loading={isScanning}
+                          onSubmit={handleBarcodeSubmit}
+                        />
                       </CardContent>
                     </Card>
 
@@ -1059,50 +1024,14 @@ export default function CashierPOS() {
                         <CardTitle className="text-center text-xl">مسح المنتجات</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="امسح باركود المنتج..."
-                            value={barcodeInput}
-                            onChange={(e) => {
-                              let value = e.target.value;
-
-                              // حروف + أرقام فقط
-                              value = value.replace(/[^a-zA-Z0-9]/g, "");
-
-                              // حد أقصى 20
-                              value = value.slice(0, 20);
-
-                              // إجبار قيمة الـ DOM (مهم مع QR / Scanner)
-                              e.target.value = value;
-
-                              setBarcodeInput(value);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && barcodeInput.trim()) {
-                                handleBarcodeSubmit();
-                              }
-                            }}
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                handleBarcodeSubmit();
-                              }
-                            }}
-                            className="flex-1 text-lg p-4"
-                            disabled={isScanning}
-                            autoFocus
-                          />
-                          <Button
-                            onClick={handleBarcodeSubmit}
-                            disabled={isScanning || !barcodeInput.trim()}
-                            className="px-6"
-                          >
-                            {isScanning ? (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <ScanBarcode className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
+                        <BarcodeScanner
+                          placeholder="امسح باركود المنتج..."
+                          loading={isScanning}
+                          autoFocus
+                          onSubmit={(value) => {
+                            handleBarcodeSubmit(value);
+                          }}
+                        />
                       </CardContent>
                     </Card>
 
@@ -1275,311 +1204,76 @@ export default function CashierPOS() {
                   </div>
                 </div>
               </TabsContent>
-
-
               <TabsContent value="qr-verification" className="space-y-6">
-                {!currentOrder ? (
-                  <div className="space-y-6">
-                    {/* QR Scanner */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <QrCode className="h-6 w-6" />
-                          مسح QR كود العميل
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="max-w-md mx-auto space-y-4">
-                          <div className="flex gap-2">
-                            <Input
-                              type="text"
-                              placeholder="امسح QR كود العميل أو باركود المنتج..."
-                              value={barcodeInput}
-                              onChange={(e) => {
-                                let value = e.target.value;
+              <div className="space-y-6">
+  {/* QR Scanner */}
+  <Card>
+    <CardHeader>
+      <CardTitle className="flex items-center gap-2">
+        <QrCode className="h-6 w-6" />
+        مسح QR كود العميل
+      </CardTitle>
+    </CardHeader>
 
-                                // حروف + أرقام فقط
-                                value = value.replace(/[^a-zA-Z0-9]/g, "");
+    <CardContent>
+      <div className="max-w-md mx-auto space-y-4">
+        <BarcodeScanner
+          placeholder="امسح QR كود العميل أو باركود المنتج..."
+          loading={fetchQROrderMutation.isPending}
+          autoFocus
+          onSubmit={handleBarcodeSubmit}
+        />
 
-                                // حد أقصى 20
-                                value = value.slice(0, 20);
+        <p className="text-center text-gray-600 dark:text-gray-400">
+          امسح QR كود من تطبيق العميل أو استخدم الماسح المتعدد (D1/D2)
+        </p>
 
-                                // إجبار قيمة الـ DOM (مهم مع QR / Scanner)
-                                e.target.value = value;
+        <div className="text-center mt-2">
+          <p className="text-xs text-blue-600 dark:text-blue-400">
+            💡 استخدم المولد التجريبي أدناه لإنشاء QR تجريبي للاختبار
+          </p>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
 
-                                setBarcodeInput(value);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && barcodeInput.trim()) {
-                                  handleBarcodeSubmit();
-                                }
-                              }}
-                              className="flex-1 text-lg p-4"
-                              autoFocus
-                            />
+  {invoiceUrl && (
+    <Card className="p-4">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>عرض الفاتورة</span>
+          <Button
+            variant="outline"
+            onClick={() => window.open(invoiceUrl, "_blank")}
+          >
+            فتح في نافذة جديدة
+          </Button>
+        </CardTitle>
+      </CardHeader>
 
-                            <Button
-                              onClick={handleBarcodeSubmit}
-                              disabled={fetchQROrderMutation.isPending}
-                              className="px-6"
-                            >
-                              {fetchQROrderMutation.isPending ? (
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <ScanBarcode className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                          <p className="text-center text-gray-600 dark:text-gray-400">
-                            امسح QR كود من تطبيق العميل أو استخدم الماسح المتعدد (D1/D2)
-                          </p>
-                          <div className="text-center mt-2">
-                            <p className="text-xs text-blue-600 dark:text-blue-400">
-                              💡 استخدم المولد التجريبي أدناه لإنشاء QR تجريبي للاختبار
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    {invoiceUrl && (
-                      <Card className="p-4">
-                        <CardHeader>
-                          <CardTitle className="flex items-center justify-between">
-                            <span>عرض الفاتورة</span>
-                            <Button variant="outline" onClick={() => window.open(invoiceUrl, "_blank")}>
-                              فتح في نافذة جديدة
-                            </Button>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <iframe
-                            src={invoiceUrl}
-                            className="w-full h-[600px] border rounded-lg"
-                            title="Invoice PDF"
-                          />
-                          <Button
-                            className="w-full "
-                            onClick={() => {
-                              const iframe = document.querySelector("iframe") as HTMLIFrameElement;
-                              if (iframe) iframe.contentWindow?.print();
-                            }}
-                          >
-                            🖨️ طباعة الفاتورة
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    )}
+      <CardContent className="space-y-4">
+        <iframe
+          src={invoiceUrl}
+          className="w-full h-[600px] border rounded-lg"
+          title="Invoice PDF"
+        />
 
+        <Button
+          className="w-full"
+          onClick={() => {
+            const iframe = document.querySelector(
+              "iframe"
+            ) as HTMLIFrameElement;
+            iframe?.contentWindow?.print();
+          }}
+        >
+          🖨️ طباعة الفاتورة
+        </Button>
+      </CardContent>
+    </Card>
+  )}
+</div>
 
-                  </div>
-                ) : (
-                  /* Order Verification Interface */
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Product Verification */}
-                    <div className="lg:col-span-2 space-y-6">
-                      {/* Barcode Scanner */}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <ScanBarcode className="h-5 w-5" />
-                            مسح المنتجات للتحقق
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="flex gap-2">
-                            <Input
-                              type="text"
-                              placeholder="امسح باركود المنتج للتحقق..."
-                              value={barcodeInput}
-                              onChange={(e) => {
-                                let value = e.target.value;
-
-                                // امنع أي رموز (حروف + أرقام فقط)
-                                value = value.replace(/[^a-zA-Z0-9]/g, "");
-
-                                // اقصى 20 حرف
-                                value = value.slice(0, 20);
-
-                                // اجبار قيمة الـ DOM (مهم جدًا مع scanner)
-                                e.target.value = value;
-
-                                setBarcodeInput(value);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && barcodeInput.trim()) {
-                                  handleBarcodeSubmit();
-                                }
-                              }}
-                              className="flex-1 text-lg p-4"
-                              disabled={isQRScanning}
-                            />
-
-                            <Button
-                              onClick={handleBarcodeSubmit}
-                              disabled={isQRScanning || !barcodeInput.trim()}
-                              className="px-6"
-                            >
-                              {isQRScanning ? (
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <ScanBarcode className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Product List */}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="flex items-center justify-between">
-                            <span className="flex items-center gap-2">
-                              <Package className="h-5 w-5" />
-                              قائمة المنتجات
-                            </span>
-                            <Badge variant={getAllItemsVerified() ? "default" : "secondary"}>
-                              {currentOrder.items.filter(item => item.isComplete).length} / {currentOrder.items.length}
-                            </Badge>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            {currentOrder.items.map((item, index) => (
-                              <Card key={index} className={`p-4 ${item.isComplete ? 'bg-green-50 dark:bg-green-900/20 border-green-200' : 'bg-red-50 dark:bg-red-900/20 border-red-200'}`}>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-full ${item.isComplete ? 'bg-green-500' : 'bg-red-500'}`}>
-                                      {item.isComplete ? (
-                                        <CheckCircle className="h-4 w-4 text-white" />
-                                      ) : (
-                                        <XCircle className="h-4 w-4 text-white" />
-                                      )}
-                                    </div>
-                                    <div>
-                                      <p className="font-medium text-gray-900 dark:text-white">
-                                        {item.productName}
-                                      </p>
-                                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                                        الباركود: {item.barcode}
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  <div className="text-center">
-                                    <div className="flex items-center justify-center gap-1 mb-2">
-                                      {getVerificationCircles(item.quantity, item.scannedQuantity)}
-                                    </div>
-                                    <p className="text-sm font-medium">
-                                      {item.scannedQuantity} / {item.quantity}
-                                    </p>
-                                  </div>
-                                </div>
-                              </Card>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    {/* Order Summary */}
-                    <div className="space-y-6">
-                      {/* Customer Info */}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <User className="h-5 w-5" />
-                            معلومات الطلب
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="flex justify-between">
-                            <span>العميل:</span>
-                            <span>{currentOrder.customerName || 'عميل ضيف'}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>إجمالي المبلغ:</span>
-                            <span>{currentOrder.totalAmount.toLocaleString('ar-SA')} ر.س</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span>حالة الدفع:</span>
-                            {getPaymentStatusBadge(currentOrder.paymentStatus)}
-                          </div>
-                          {currentOrder.paymentTransactionId && (
-                            <div className="flex justify-between">
-                              <span>رقم العملية:</span>
-                              <span className="text-sm font-mono">{currentOrder.paymentTransactionId}</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between">
-                            <span>وقت الطلب:</span>
-                            <span className="text-sm">{new Date(currentOrder.createdAt).toLocaleString('ar-SA')}</span>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Missing Items Alert */}
-                      {getMissingItems().length > 0 && (
-                        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-900/20">
-                          <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
-                              <AlertTriangle className="h-5 w-5" />
-                              منتجات مفقودة
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2">
-                              {getMissingItems().map((item, index) => (
-                                <div key={index} className="flex justify-between text-sm">
-                                  <span>{item.name}</span>
-                                  <span>{item.quantity - item.scannedQuantity} قطعة</span>
-                                </div>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {/* Action Buttons */}
-                      <div className="space-y-3">
-                        <Button
-                          onClick={() => completeVerificationMutation.mutate(currentOrder.id)}
-                          disabled={!getAllItemsVerified() || completeVerificationMutation.isPending}
-                          className="w-full"
-                          size="lg"
-                        >
-                          {completeVerificationMutation.isPending ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin ml-2" />
-                              جاري الإتمام...
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="h-4 w-4 ml-2" />
-                              إتمام التحقق
-                            </>
-                          )}
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setCurrentOrder(null);
-                            setQrInput("");
-                          }}
-                          className="w-full"
-                        >
-                          إلغاء والبدء من جديد
-                        </Button>
-
-                        {!getAllItemsVerified() && (
-                          <p className="text-xs text-orange-600 dark:text-orange-400 text-center">
-                            يجب التحقق من جميع المنتجات قبل الإتمام
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
               </TabsContent>
               <AnimatePresence>
                 {showPopup && (

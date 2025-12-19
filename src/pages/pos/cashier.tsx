@@ -1,4 +1,4 @@
-import { useState, useEffect, act } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
@@ -10,11 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScanBarcode, ShoppingCart, Plus, Minus, X, Menu, Package, QrCode, CheckCircle, XCircle, AlertTriangle, User, CreditCard, Clock, Grip, GripVertical, GripHorizontal, Trash, Trash2, Wallet, Loader2, CheckCircle2 } from "lucide-react";
+import { ScanBarcode, ShoppingCart, Plus, Minus, X, Menu, Package, QrCode, CheckCircle, XCircle, AlertTriangle, User, CreditCard, Trash2, Wallet, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import QuickCustomerAdd from "@/components/customers/quick-customer-add";
-import TestQRGenerator from "@/components/qr/test-qr-generator";
 import { checkoutProcess, getProductByBartcode, removeProduct, updateCartItem, getSummary, emptyCart, addToCartApi, getCartItem, checkoutOrder, validateCashPayment, getOrderByOrd, verifyOrder } from "@/services/cashier";
 import SixPointsIcon from "@/components/ui/SixPointsIcon";
 import { getStoreBySlug } from "@/services/stores";
@@ -63,9 +62,9 @@ export default function CashierPOS() {
 
   const [step, setStep] = useState("select"); // select | cash | processing | success
   const [paidAmount, setPaidAmount] = useState("");
-  
+
   const [change, setChange] = useState(0);
-  
+
   // POS State
   const [cart, setCart] = useState<CartItem[]>([]);
   // const [cartApi,setCartApi] = useState<CartItem[]>([])
@@ -73,7 +72,7 @@ export default function CashierPOS() {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  
+
   // QR Verification State
   const [activeTab, setActiveTab] = useState("pos");
   const [currentOrder, setCurrentOrder] = useState<QROrder | null>(null);
@@ -82,13 +81,12 @@ export default function CashierPOS() {
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>("https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")
   // Customer Orders Verification State
   const [customerOrders, setCustomerOrders] = useState<any[]>([]);
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [isFetchingOrders, setIsFetchingOrders] = useState(false);
+
   const [isOrderDone, setIsOrderDone] = useState<boolean>(false)
   //order state
   const [orderState, setOrderState] = useState<boolean>(false)
   const [ordValue, setOrdValue] = useState<string>("")
-  
+
   // Fetch user store data
   const userStoreSlug: string = localStorage.getItem("userSlug")
   const { data: store, isLoading: storeLoading, error: storeError } = useQuery({
@@ -107,20 +105,20 @@ export default function CashierPOS() {
     queryFn: getSummary,
   })
   console.log("cartItems from summary", cartSummary)
-  
+
   useEffect(() => {
     console.log("fetched current store", store);
   }, [store]);
-  
+
   const storeLatitude = store?.latitude ?? null;
   const storeLongitude = store?.longitude ?? null;
   console.log("fetched current store", store)
-  
+
   console.log(storeLatitude, storeLongitude)
   // Fetch products by barcode
   const handleProcessOrder2 = () => {
     if (!paymentMethod) return;
-    
+
     if (paymentMethod === "cash") {
       setStep("cash");
     } else if (paymentMethod === "visa") {
@@ -133,20 +131,20 @@ export default function CashierPOS() {
       setStep("success");
     }
   };
-  
+
   const findProductMutation = useMutation({
     mutationFn: async (payload) => {
       console.log("➡️ Mutation started with:", payload);
       const response = await getProductByBartcode(payload);
       console.log("✅ Product fetched:", response);
-      
+
       return response;
     },
     onSuccess: (data) => {
       const product = data.product;
       console.log("🎉 onSuccess fired:", product);
       addToCart(product);
-      
+
       const productDate = {
         "product_id": data.product.id,
         "quantity": 1,
@@ -174,13 +172,13 @@ export default function CashierPOS() {
       });
     },
   });
-  
+
   //Empty cart
   const emptyCartMutation = useMutation({
     mutationFn: emptyCart,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
-      
+
       toast({
         title: "تم مسح السلة",
         description: "تم تفريغ جميع المنتجات من السلة",
@@ -197,7 +195,7 @@ export default function CashierPOS() {
       console.error("❌ Error clearing cart:", error);
     },
   });
-  
+
   const addToCartMutation = useMutation({
     mutationFn: addToCartApi,
     onSuccess: (data) => {
@@ -208,7 +206,7 @@ export default function CashierPOS() {
       console.log("✅ Added to cart:", data);
       queryClient.invalidateQueries({ queryKey: ["cartApi"] });
       queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
-      
+
     },
     onError: (error) => {
       toast({
@@ -219,8 +217,6 @@ export default function CashierPOS() {
       console.error("❌ Error adding to cart:", error);
     },
   });
-  
-  
   // Remove Product
   const removeProductMutation = useMutation({
     mutationFn: removeProduct,
@@ -232,7 +228,7 @@ export default function CashierPOS() {
       console.log("🗑️ Product removed:", data);
       queryClient.invalidateQueries({ queryKey: ["cartApi"] });
       queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
-      
+
     },
     onError: (error) => {
       toast({
@@ -243,38 +239,38 @@ export default function CashierPOS() {
       console.error("❌ Error removing product:", error);
     },
   });
-  
+
   // Process order mutation
   const processOrderMutation = useMutation({
     mutationFn: checkoutProcess,
-    
+
     onSuccess: (data) => {
-      
+
       console.log("Created Order:", data);
-      
+
       // نجيب الاوردر نمبر مباشرة بدون استخدام ستايت
       const newOrderNumber = data.order_number;
-      
+
       // نعمل verify فورا مباشرة بعد الإنشاء
       verifyOrderMutation.mutate({
         order_number: newOrderNumber,
         paid_amount: paidAmount,
         confirm: true
       });
-      
+
       // لو محتاج تخزنها للواجهة فقط
       setOrdValue(newOrderNumber);
-      
+
       setIsOrderDone(true);
       clearCart();
       setSelectedCustomer(null);
-      
+
       toast({
         title: "تم إتمام البيع",
         description: "تم حفظ الطلب وتم تأكيده",
       });
     },
-    
+
     onError: () => {
       toast({
         title: "خطأ",
@@ -283,7 +279,7 @@ export default function CashierPOS() {
       });
     }
   });
-  
+
   useEffect(() => {
     console.log("🔥 ordValue UPDATED:", ordValue);
   }, [ordValue]);
@@ -302,11 +298,11 @@ export default function CashierPOS() {
       setStep("success"); // لو تمام، يروح لشاشة النجاح
     }
   };
-  
+
   // mutation to get order by ord
   const getOrderMutation = useMutation({
     mutationFn: (ord: string) => getOrderByOrd(ord),
-    
+
     onSuccess: (orderData) => {
       setOrderData(orderData.qr_decoded)
       setOrderState(true)
@@ -316,10 +312,10 @@ export default function CashierPOS() {
         title: "تم جلب الطلب بنجاح",
         description: `رقم الطلب: ${orderData?.order_number ?? "غير معروف"}`,
       });
-      
+
       console.log("Order Data:", orderData);
     },
-    
+
     onError: () => {
       toast({
         title: "خطأ",
@@ -328,14 +324,14 @@ export default function CashierPOS() {
       });
     },
   });
-  
-  
-  
+
+
+
   //verify order mutation
   // mutation to verify order
   const verifyOrderMutation = useMutation({
     mutationFn: (data: object) => verifyOrder(data),
-    
+
     onSuccess: (res) => {
       setOrderData(null)
       setShowPopup(false)
@@ -346,30 +342,26 @@ export default function CashierPOS() {
         title: "تم التحقق من الدفع بنجاح",
         description: "تم التأكيد على الطلب.",
       });
-      
+
       console.log("Verify Order Response:", res);
     },
-    
+
     onError: (error) => {
       toast({
         title: "خطأ",
         description: "فشل في التحقق من الطلب",
         variant: "destructive",
       });
-      
+
       console.log("Verify Order Error:", error);
     },
   });
-  
-
 
   //remove order 
-
   const removeOrder = () => {
     setOrderState(false)
     setOrderData(null)
   }
-
   // Handle barcode scanning
   const handleBarcodeSubmit = () => {
     if (!barcodeInput.trim()) return;
@@ -425,152 +417,7 @@ export default function CashierPOS() {
       }
     }
   };
-  // ✅ ميوتشيشن لإنشاء الطلب (Checkout)
-  const checkoutMutation = useMutation({
-    mutationFn: checkoutOrder,
-    onSuccess: (order) => {
-      toast({
-        title: "تم إنشاء الطلب",
-        description: `رقم الطلب: ${order.order_number}`,
-      });
 
-      const totalDue = order?.totals?.grand_total ?? 0;
-      const paidAmountStr = prompt(
-        `إجمالي المطلوب: ${totalDue} SAR\nأدخل المبلغ المدفوع:`,
-        totalDue.toString()
-      );
-      const paidAmount = parseFloat(paidAmountStr || "0");
-
-      if (isNaN(paidAmount) || paidAmount < totalDue) {
-        toast({
-          title: "مبلغ غير كافٍ",
-          description: "المبلغ المدفوع غير كافٍ لإتمام العملية",
-          variant: "destructive",
-        });
-        return;
-      }
-      // ✅ تنفيذ الدفع بعد نجاح الـ checkout
-      validateCashMutation.mutate({ order_number: order.order_number, paid_amount: paidAmount });
-    },
-    onError: () => {
-      toast({
-        title: "خطأ",
-        description: "فشل إنشاء الطلب",
-        variant: "destructive",
-      });
-    },
-  });
-
-
-
-  // ✅ ميوتشيشن لتأكيد الدفع بالكاش
-  const validateCashMutation = useMutation({
-    mutationFn: validateCashPayment,
-    onSuccess: async (paymentResult) => {
-      const changeDue = paymentResult?.summary?.change_due ?? 0;
-      toast({
-        title: "تم الدفع بنجاح ✅",
-        description: `المتبقي للعميل: ${changeDue} SAR`,
-      });
-
-      // 🧹 مسح السلة بعد الدفع
-      clearCart();
-      queryClient.invalidateQueries({ queryKey: ["cartApi"] });
-      queryClient.invalidateQueries({ queryKey: ["cartSummary"] });
-
-      // 🧾 عرض الفاتورة
-      if (paymentResult.invoice?.pdf_url) {
-        window.open(paymentResult.invoice.pdf_url, "_blank");
-      }
-    },
-    onError: () => {
-      toast({
-        title: "خطأ في الدفع",
-        description: "حدث خطأ أثناء تأكيد الدفع",
-        variant: "destructive",
-      });
-    },
-  });
-
-  //   // 🧠 لما المستخدم يضغط على الدفع
-  //   const handlePayment = () => {
-  //     checkoutMutation.mutate();
-  //   };
-
-  //   return (
-  //     <button
-  //       onClick={handlePayment}
-  //       disabled={checkoutMutation.isLoading || validateCashMutation.isLoading}
-  //       className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-  //     >
-  //       {checkoutMutation.isLoading || validateCashMutation.isLoading
-  //         ? "جارٍ المعالجة..."
-  //         : "ادفع الآن"}
-  //     </button>
-  //   );
-  // }
-
-  const handlePayment = async () => {
-    try {
-      if (!cart || cart.length === 0) {
-        alert("السلة فارغة");
-        return;
-      }
-
-      // 1️⃣ Checkout order
-      const checkoutPayload = {
-        preview: false,
-        payment_method: "cash", // or "visa"
-        coupon_code: "",
-        use_loyalty_points: false,
-        save_as_default_payment: true,
-      };
-
-      const order = await apiRequest("POST", "/orders/order/checkout/", checkoutPayload);
-
-
-      if (!order?.order_number) {
-        throw new Error("فشل إنشاء الطلب");
-      }
-
-      // Optionally, show total to cashier
-      const totalDue = order?.totals?.grand_total ?? 0;
-      const paidAmountStr = prompt(`إجمالي المطلوب: ${totalDue} SAR\nأدخل المبلغ المدفوع:`, totalDue.toString());
-      const paidAmount = parseFloat(paidAmountStr || "0");
-
-      if (isNaN(paidAmount) || paidAmount < totalDue) {
-        alert("المبلغ المدفوع غير كافٍ لإتمام العملية");
-        return;
-      }
-
-      // 2️⃣ Validate cash payment
-      const paymentPayload = {
-        order_number: order.order_number,
-        paid_amount: paidAmount,
-        confirm: true,
-      };
-
-      const paymentResult = await apiRequest("POST", "/invoices/payments/cash/validate/", paymentPayload);
-
-      if (!paymentResult?.invoice?.pdf_url) {
-        throw new Error("لم يتم إصدار الفاتورة بنجاح");
-      }
-
-      // 3️⃣ Display invoice + change
-      const changeDue = paymentResult?.summary?.change_due ?? 0;
-      alert(`تم الدفع بنجاح ✅\nالمتبقي للعميل: ${changeDue} SAR`);
-
-      setInvoiceUrl(paymentResult.invoice.pdf_url);
-
-      // 4️⃣ Clear cart + reset
-      await apiRequest("POST", "/orders/cart/clear/");
-      queryClient.invalidateQueries(["cartApi"]);
-
-    } catch (error) {
-      console.error(error);
-      alert("حدث خطأ أثناء معالجة الدفع");
-    }
-  };
 
 
   // Cart operations
@@ -662,16 +509,29 @@ export default function CashierPOS() {
   const calculateTotal = () => {
     return cartSummary.reduce((total, item) => total + (item.unit_price * item.quantity), 0);
   };
-  const total =
-  activeTab === "pos"
-    ? (calculateTotal() * 1.15)
-    : orderDataDetails?.qr_decoded?.totals?.grand_total;
+
+  //Get Total
+  const getTotal = () => {
+    if (activeTab === "pos") {
+      return calculateTotal() * 1.15;
+
+    }
+
+    if (activeTab === "customer-orders") {
+      return orderDataDetails?.totals.grand_total ?? 0;
+    }
+
+    return 0;
+  };
+
+  const total = getTotal();
+
   const handleProcessOrder = () => {
     console.log("I'm here in handleprocessorder")
 
     if (activeTab === "pos") {
 
-      if (cart.length === 0) return;
+      if (cartApi.length === 0) return;
 
       const orderData = {
 
@@ -864,34 +724,15 @@ export default function CashierPOS() {
   if (!user) {
     return <Loading />;
   }
-  const fetchCustomerOrdersMutation = useMutation({
-    mutationFn: async () => {
-      await new Promise((res) => setTimeout(res, 1000));
-      return [
-        {
-          id: 1,
-          customer_name: "أحمد محمد",
-          payment_status: "paid",
-          total_amount: "230.00",
-          created_at: "2025-11-02T10:00:00Z",
-          items: [
-            { name: "منتج 1", barcode: "123", quantity: 2, unit_price: 50 },
-            { name: "منتج 2", barcode: "456", quantity: 1, unit_price: 130 },
-          ],
-        },
-      ];
-    },
-    onSuccess: (data) => {
-      setCustomerOrders(data);
-      toast({ title: "تم تحميل الطلبات التجريبية" });
-    },
-  });
+
   const handleCancel = () => {
     setStep("select");
     setPaymentMethod("");
     setPaidAmount("");
     setShowPopup(false);
   };
+  console.log("PaidAmount: ", paidAmount)
+  console.log("total: ", total)
 
   return (
     <div className="min-h-screen flex" dir="rtl">
@@ -956,23 +797,33 @@ export default function CashierPOS() {
                       <CardContent>
                         <div className="flex gap-2">
                           <Input
+                            type="text"
                             placeholder="امسح باركود المنتج..."
                             value={barcodeInput}
                             onChange={(e) => {
-                              const val = e.target.value;
-                              setBarcodeInput(val);
-                              setOrdValue(val);
-                              console.log("order ORD: ", ordValue)
-                            }}
+                              let value = e.target.value;
 
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
+                              // حروف + أرقام فقط
+                              value = value.replace(/[^a-zA-Z0-9]/g, "");
+
+                              // حد أقصى 20
+                              value = value.slice(0, 20);
+
+                              // إجبار قيمة الـ DOM (مهم مع scanner)
+                              e.target.value = value;
+
+                              setBarcodeInput(value);
+                              setOrdValue(value);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && barcodeInput.trim()) {
                                 handleBarcodeSubmit();
                               }
                             }}
                             className="flex-1 text-lg p-4"
                             disabled={isScanning}
                           />
+
                           <Button
                             onClick={handleBarcodeSubmit}
                             disabled={isScanning || !barcodeInput.trim()}
@@ -1050,7 +901,7 @@ export default function CashierPOS() {
                                     {/* ✅ Loyalty Points */}
                                     {item.loyalty_points_per_item !== undefined && (
                                       <div className="flex items-center gap-1 mt-1 text-green-600 dark:text-green-400 text-sm">
-                                        <span><SixPointsIcon/></span>
+                                        <span><SixPointsIcon /></span>
                                         <span>{item.loyalty_points_per_item} نقاط</span>
                                       </div>
                                     )}
@@ -1170,7 +1021,7 @@ export default function CashierPOS() {
                           <Button
                             className="w-full"
                             size="lg"
-                            disabled={cart.length === 0 || processOrderMutation.isPending}
+                            disabled={(cartApi?.length ?? 0) === 0 || processOrderMutation.isPending}
                             onClick={() => setShowPopup(true)}
                           >
                             {processOrderMutation.isPending ? (
@@ -1212,7 +1063,25 @@ export default function CashierPOS() {
                           <Input
                             placeholder="امسح باركود المنتج..."
                             value={barcodeInput}
-                            onChange={(e) => setBarcodeInput(e.target.value)}
+                            onChange={(e) => {
+                              let value = e.target.value;
+
+                              // حروف + أرقام فقط
+                              value = value.replace(/[^a-zA-Z0-9]/g, "");
+
+                              // حد أقصى 20
+                              value = value.slice(0, 20);
+
+                              // إجبار قيمة الـ DOM (مهم مع QR / Scanner)
+                              e.target.value = value;
+
+                              setBarcodeInput(value);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && barcodeInput.trim()) {
+                                handleBarcodeSubmit();
+                              }
+                            }}
                             onKeyPress={(e) => {
                               if (e.key === 'Enter') {
                                 handleBarcodeSubmit();
@@ -1220,6 +1089,7 @@ export default function CashierPOS() {
                             }}
                             className="flex-1 text-lg p-4"
                             disabled={isScanning}
+                            autoFocus
                           />
                           <Button
                             onClick={handleBarcodeSubmit}
@@ -1422,17 +1292,32 @@ export default function CashierPOS() {
                         <div className="max-w-md mx-auto space-y-4">
                           <div className="flex gap-2">
                             <Input
+                              type="text"
                               placeholder="امسح QR كود العميل أو باركود المنتج..."
                               value={barcodeInput}
-                              onChange={(e) => setBarcodeInput(e.target.value)}
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
+                              onChange={(e) => {
+                                let value = e.target.value;
+
+                                // حروف + أرقام فقط
+                                value = value.replace(/[^a-zA-Z0-9]/g, "");
+
+                                // حد أقصى 20
+                                value = value.slice(0, 20);
+
+                                // إجبار قيمة الـ DOM (مهم مع QR / Scanner)
+                                e.target.value = value;
+
+                                setBarcodeInput(value);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && barcodeInput.trim()) {
                                   handleBarcodeSubmit();
                                 }
                               }}
                               className="flex-1 text-lg p-4"
                               autoFocus
                             />
+
                             <Button
                               onClick={handleBarcodeSubmit}
                               disabled={fetchQROrderMutation.isPending}
@@ -1503,17 +1388,32 @@ export default function CashierPOS() {
                         <CardContent>
                           <div className="flex gap-2">
                             <Input
+                              type="text"
                               placeholder="امسح باركود المنتج للتحقق..."
                               value={barcodeInput}
-                              onChange={(e) => setBarcodeInput(e.target.value)}
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
+                              onChange={(e) => {
+                                let value = e.target.value;
+
+                                // امنع أي رموز (حروف + أرقام فقط)
+                                value = value.replace(/[^a-zA-Z0-9]/g, "");
+
+                                // اقصى 20 حرف
+                                value = value.slice(0, 20);
+
+                                // اجبار قيمة الـ DOM (مهم جدًا مع scanner)
+                                e.target.value = value;
+
+                                setBarcodeInput(value);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && barcodeInput.trim()) {
                                   handleBarcodeSubmit();
                                 }
                               }}
                               className="flex-1 text-lg p-4"
                               disabled={isQRScanning}
                             />
+
                             <Button
                               onClick={handleBarcodeSubmit}
                               disabled={isQRScanning || !barcodeInput.trim()}

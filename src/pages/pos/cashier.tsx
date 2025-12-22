@@ -754,16 +754,16 @@ export default function CashierPOS() {
                         <div className="space-y-2">
                           <div className="flex justify-between">
                             <span>المجموع الفرعي:</span>
-                            <span>{grandTotal.toLocaleString('ar-SA')} ر.س</span>
+                            <span>{subtotal.toLocaleString('ar-SA')} ر.س</span>
                           </div>
                           <div className="flex justify-between">
                             <span>ضريبة القيمة المضافة (15%):</span>
-                            <span>{(grandTotal * VAT_RATE).toLocaleString('ar-SA')} ر.س</span>
+                            <span>{vatAmount.toLocaleString('ar-SA')} ر.س</span>
                           </div>
                           <Separator />
                           <div className="flex justify-between text-lg font-bold">
                             <span>الإجمالي:</span>
-                            <span>{(grandTotal * TOTAL_MULTIPLIER).toLocaleString('ar-SA')} ر.س</span>
+                            <span>{total.toLocaleString('ar-SA')} ر.س</span>
                           </div>
                         </div>
 
@@ -951,7 +951,7 @@ export default function CashierPOS() {
                               <div className="flex justify-between items-center">
                                 <span className="text-lg font-bold">الإجمالي الكلي</span>
                                 <span className="text-xl font-bold text-green-600 dark:text-green-400">
-                                  {orderDataDetails.totals.grand_total} ر.س
+                                  {orderDataDetails.totals.grand_total } ر.س
                                 </span>
                               </div>
 
@@ -1168,7 +1168,7 @@ export default function CashierPOS() {
                               إجمالي المبلغ: {total.toFixed(2)} ﷼
                             </div>
                           ) : (<div className="bg-green-100 text-green-600 px-4 py-2 rounded-lg font-semibold text-center mb-4">
-                            إجمالي المبلغ: {orderDataDetails.totals.grand_total} ﷼
+                            إجمالي المبلغ: {orderDataDetails.totals.grand_total } ﷼
                           </div>)}
 
                           <input

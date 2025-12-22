@@ -10,15 +10,26 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScanBarcode, ShoppingCart, Plus, Minus, X, Menu, Package, QrCode, CheckCircle, XCircle, AlertTriangle, User, CreditCard, Trash2, Wallet, Loader2, CheckCircle2 } from "lucide-react";
+import { ScanBarcode, ShoppingCart, Plus, Minus, X, Menu, Package, QrCode, CreditCard, Trash2, Wallet, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import QuickCustomerAdd from "@/components/customers/quick-customer-add";
-import { checkoutProcess, getProductByBartcode, removeProduct, updateCartItem, getSummary, emptyCart, addToCartApi, getCartItem, checkoutOrder, validateCashPayment, getOrderByOrd, verifyOrder } from "@/services/cashier";
+import { checkoutProcess, getProductByBartcode, removeProduct, updateCartItem, getSummary, emptyCart, addToCartApi, getCartItem, getOrderByOrd, verifyOrder } from "@/services/cashier";
 import SixPointsIcon from "@/components/ui/SixPointsIcon";
 import { getStoreBySlug } from "@/services/stores";
 import { motion, AnimatePresence } from "framer-motion";
 import { BarcodeScanner } from "@/components/common/BarcodeScanner";
+import { VAT_RATE, TOTAL_MULTIPLIER } from "@/constants/cashier";
+import {
+  calculateSubtotal,
+  calculateVAT,
+  calculateGrandTotal,
+} from "@/utils/pos/calculations";
+import { useCartOperations } from "@/hooks/pos/useCartOperations";
+
+
+
+
 
 interface CartItem {
   id: number;
@@ -52,6 +63,13 @@ interface QROrder {
 }
 
 export default function CashierPOS() {
+  const {
+    cart,
+    addToCart,
+    updateQuantity,
+    removeFromCart,
+    clearCart,
+  } = useCartOperations();
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -66,9 +84,6 @@ export default function CashierPOS() {
 
   const [change, setChange] = useState(0);
 
-  // POS State
-  const [cart, setCart] = useState<CartItem[]>([]);
-  // const [cartApi,setCartApi] = useState<CartItem[]>([])
   const [barcodeInput, setBarcodeInput] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -144,7 +159,7 @@ export default function CashierPOS() {
     onSuccess: (data) => {
       const product = data.product;
       console.log("🎉 onSuccess fired:", product);
-      addToCart(product);
+      
 
       const productDate = {
         "product_id": data.product.id,
@@ -154,7 +169,7 @@ export default function CashierPOS() {
         "notes": data.product.description
       }
       console.log("Product data that will add in cart", productDate)
-      addToCartMutation.mutate(productDate)
+      addToCart(product, productDate);
       setBarcodeInput("");
       setIsScanning(false);
       toast({
@@ -174,72 +189,7 @@ export default function CashierPOS() {
     },
   });
 
-  //Empty cart
-  const emptyCartMutation = useMutation({
-    mutationFn: emptyCart,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
-
-      toast({
-        title: "تم مسح السلة",
-        description: "تم تفريغ جميع المنتجات من السلة",
-      });
-      console.log("🧹 Cart cleared:", data);
-      queryClient.invalidateQueries({ queryKey: ["cartApi"] });
-    },
-    onError: (error) => {
-      toast({
-        title: "خطأ في التفريغ",
-        description: "لم يتم مسح السلة بنجاح",
-        variant: "destructive",
-      });
-      console.error("❌ Error clearing cart:", error);
-    },
-  });
-
-  const addToCartMutation = useMutation({
-    mutationFn: addToCartApi,
-    onSuccess: (data) => {
-      toast({
-        title: "تمت الإضافة",
-        description: "تمت إضافة المنتج إلى السلة بنجاح",
-      });
-      console.log("✅ Added to cart:", data);
-      queryClient.invalidateQueries({ queryKey: ["cartApi"] });
-      queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
-
-    },
-    onError: (error) => {
-      toast({
-        title: "خطأ في الإضافة",
-        description: "فشل في إضافة المنتج إلى السلة",
-        variant: "destructive",
-      });
-      console.error("❌ Error adding to cart:", error);
-    },
-  });
-  // Remove Product
-  const removeProductMutation = useMutation({
-    mutationFn: removeProduct,
-    onSuccess: (data) => {
-      toast({
-        title: "تم حذف المنتج",
-        description: "تم حذف المنتج من السلة بنجاح",
-      });
-      console.log("🗑️ Product removed:", data);
-      queryClient.invalidateQueries({ queryKey: ["cartApi"] });
-      queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
-
-    },
-    onError: (error) => {
-      toast({
-        title: "خطأ في الحذف",
-        description: "لم يتم حذف المنتج من السلة",
-        variant: "destructive",
-      });
-      console.error("❌ Error removing product:", error);
-    },
-  });
+ 
 
   // Process order mutation
   const processOrderMutation = useMutation({
@@ -326,8 +276,6 @@ export default function CashierPOS() {
     },
   });
 
-
-
   //verify order mutation
   // mutation to verify order
   const verifyOrderMutation = useMutation({
@@ -395,6 +343,7 @@ export default function CashierPOS() {
         latitude: storeLatitude ?? 29.9601,
         longitude: storeLongitude ?? 31.2594,
       };
+      
 
       console.log("📦 Payload sent:", payload);
       findProductMutation.mutate(payload);
@@ -418,114 +367,23 @@ export default function CashierPOS() {
     }
   };
 
+  
+
+  const subtotal = calculateSubtotal(cartSummary);
+
+  const total =
+    activeTab === "pos"
+      ? calculateGrandTotal(subtotal)
+      : activeTab === "customer-orders"
+        ? orderDataDetails?.totals.grand_total ?? 0
+        : 0;
+
+
+  const vatAmount = calculateVAT(subtotal);
+  const grandTotal = calculateGrandTotal(subtotal);
 
 
 
-  // Cart operations
-  const addToCart = (product: any) => {
-    setCart(prev => {
-      const existingItem = prev.find(item => item.id === product.id);
-
-      if (existingItem) {
-        // If item already exists, just increment quantity
-        return prev.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      } else {
-        // Add new item with extra details
-        return [
-          ...prev,
-          {
-            id: product.id,
-            name: product.name,
-            price: parseFloat(product.pricing.final_price),
-            quantity: 1,
-            barcode: product.barcode,
-            image_url: product.image_url || "",             // 🆕 image
-            loyalty_points: product.loyalty_points || 0,     // 🆕 points
-            weight: product.weight || "",                    // 🆕 weight
-          },
-        ];
-      }
-    });
-  };
-
-
-
-  const updateQuantity = (
-    cartItemId: number,
-    productId: number,
-    newQuantity: number
-  ) => {
-
-    if (newQuantity <= 0) {
-      removeFromCart(cartItemId);
-
-      console.log("Deleting cart item:", cartItemId);
-
-      removeProductMutation.mutate(cartItemId);
-      return;
-    }
-
-    const editedData = {
-      product_id: productId,   // ده جوه البودي
-      quantity: newQuantity,
-      notes: "Need them ASAP"
-    };
-
-    console.log("Edited data:", editedData);
-
-    updateCartMutation.mutate({
-      cartItemId,  // ده اللي هيتبعت في الريكوست
-      editedData
-    });
-
-    // تحديث الواجهة
-    setCart(prev =>
-      prev.map(item =>
-        item.cart_item_id === cartItemId
-          ? { ...item, quantity: newQuantity }
-          : item
-      )
-    );
-  };
-
-
-  const removeFromCart = (id: number) => {
-    setCart(prev => prev.filter(item => item.id !== id));
-
-    removeProductMutation.mutate(id);
-
-
-  };
-
-  const clearCart = () => {
-    emptyCartMutation.mutate();
-
-    setCart([]);
-  };
-
-  const calculateTotal = () => {
-    return cartSummary.reduce((total, item) => total + (item.unit_price * item.quantity), 0);
-  };
-
-  //Get Total
-  const getTotal = () => {
-    if (activeTab === "pos") {
-      return calculateTotal() * 1.15;
-
-    }
-
-    if (activeTab === "customer-orders") {
-      return orderDataDetails?.totals.grand_total ?? 0;
-    }
-
-    return 0;
-  };
-
-  const total = getTotal();
 
   const handleProcessOrder = () => {
     console.log("I'm here in handleprocessorder")
@@ -541,13 +399,13 @@ export default function CashierPOS() {
         employeeId: user?.id,
         status: 'completed',
         payment_method: paymentMethod,
-        subtotal: calculateTotal().toFixed(2),
+        subtotal: vatAmount.toFixed(2),
         latitude: storeLatitude,
         longitude: storeLongitude,
         discountAmount: "0",
-        vatAmount: (calculateTotal() * 0.15).toFixed(2),
-        totalAmount: (calculateTotal() * 1.15).toFixed(2),
-        paidAmount: (calculateTotal() * 1.15).toFixed(2),
+        vatAmount: vatAmount.toFixed(2),
+        totalAmount: grandTotal.toFixed(2),
+        paidAmount: grandTotal.toFixed(2),
         changeAmount: "0"
       };
       console.log("Order details", orderData)
@@ -665,62 +523,6 @@ export default function CashierPOS() {
       setIsQRScanning(false);
     },
   });
-
-  const completeVerificationMutation = useMutation({
-    mutationFn: async (qrOrderId: number) => {
-      const response = await apiRequest('POST', `/api/qr-orders/${qrOrderId}/complete`);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "تم إتمام التحقق",
-        description: "تم التحقق من جميع المنتجات بنجاح",
-      });
-      setCurrentOrder(null);
-      setQrInput("");
-    },
-    onError: () => {
-      toast({
-        title: "خطأ",
-        description: "فشل في إتمام التحقق",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const getVerificationCircles = (expected: number, scanned: number) => {
-    const circles = [];
-    for (let i = 0; i < expected; i++) {
-      circles.push(
-        <span
-          key={i}
-          className={`verification-circle ${i < scanned ? 'checked' : 'unchecked'}`}
-        />
-      );
-    }
-    return circles;
-  };
-
-  const getPaymentStatusBadge = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <Badge className="bg-green-500">مدفوع</Badge>;
-      case 'pending':
-        return <Badge variant="secondary">في الانتظار</Badge>;
-      case 'failed':
-        return <Badge variant="destructive">فشل الدفع</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getAllItemsVerified = () => {
-    return currentOrder?.items.every(item => item.isComplete) || false;
-  };
-
-  const getMissingItems = () => {
-    return currentOrder?.items.filter(item => !item.isComplete) || [];
-  };
 
   if (!user) {
     return <Loading />;
@@ -952,16 +754,16 @@ export default function CashierPOS() {
                         <div className="space-y-2">
                           <div className="flex justify-between">
                             <span>المجموع الفرعي:</span>
-                            <span>{calculateTotal().toLocaleString('ar-SA')} ر.س</span>
+                            <span>{grandTotal.toLocaleString('ar-SA')} ر.س</span>
                           </div>
                           <div className="flex justify-between">
                             <span>ضريبة القيمة المضافة (15%):</span>
-                            <span>{(calculateTotal() * 0.15).toLocaleString('ar-SA')} ر.س</span>
+                            <span>{(grandTotal * VAT_RATE).toLocaleString('ar-SA')} ر.س</span>
                           </div>
                           <Separator />
                           <div className="flex justify-between text-lg font-bold">
                             <span>الإجمالي:</span>
-                            <span>{(calculateTotal() * 1.15).toLocaleString('ar-SA')} ر.س</span>
+                            <span>{(grandTotal * TOTAL_MULTIPLIER).toLocaleString('ar-SA')} ر.س</span>
                           </div>
                         </div>
 
@@ -1205,74 +1007,74 @@ export default function CashierPOS() {
                 </div>
               </TabsContent>
               <TabsContent value="qr-verification" className="space-y-6">
-              <div className="space-y-6">
-  {/* QR Scanner */}
-  <Card>
-    <CardHeader>
-      <CardTitle className="flex items-center gap-2">
-        <QrCode className="h-6 w-6" />
-        مسح QR كود العميل
-      </CardTitle>
-    </CardHeader>
+                <div className="space-y-6">
+                  {/* QR Scanner */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <QrCode className="h-6 w-6" />
+                        مسح QR كود العميل
+                      </CardTitle>
+                    </CardHeader>
 
-    <CardContent>
-      <div className="max-w-md mx-auto space-y-4">
-        <BarcodeScanner
-          placeholder="امسح QR كود العميل أو باركود المنتج..."
-          loading={fetchQROrderMutation.isPending}
-          autoFocus
-          onSubmit={handleBarcodeSubmit}
-        />
+                    <CardContent>
+                      <div className="max-w-md mx-auto space-y-4">
+                        <BarcodeScanner
+                          placeholder="امسح QR كود العميل أو باركود المنتج..."
+                          loading={fetchQROrderMutation.isPending}
+                          autoFocus
+                          onSubmit={handleBarcodeSubmit}
+                        />
 
-        <p className="text-center text-gray-600 dark:text-gray-400">
-          امسح QR كود من تطبيق العميل أو استخدم الماسح المتعدد (D1/D2)
-        </p>
+                        <p className="text-center text-gray-600 dark:text-gray-400">
+                          امسح QR كود من تطبيق العميل أو استخدم الماسح المتعدد (D1/D2)
+                        </p>
 
-        <div className="text-center mt-2">
-          <p className="text-xs text-blue-600 dark:text-blue-400">
-            💡 استخدم المولد التجريبي أدناه لإنشاء QR تجريبي للاختبار
-          </p>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
+                        <div className="text-center mt-2">
+                          <p className="text-xs text-blue-600 dark:text-blue-400">
+                            💡 استخدم المولد التجريبي أدناه لإنشاء QR تجريبي للاختبار
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-  {invoiceUrl && (
-    <Card className="p-4">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>عرض الفاتورة</span>
-          <Button
-            variant="outline"
-            onClick={() => window.open(invoiceUrl, "_blank")}
-          >
-            فتح في نافذة جديدة
-          </Button>
-        </CardTitle>
-      </CardHeader>
+                  {invoiceUrl && (
+                    <Card className="p-4">
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between">
+                          <span>عرض الفاتورة</span>
+                          <Button
+                            variant="outline"
+                            onClick={() => window.open(invoiceUrl, "_blank")}
+                          >
+                            فتح في نافذة جديدة
+                          </Button>
+                        </CardTitle>
+                      </CardHeader>
 
-      <CardContent className="space-y-4">
-        <iframe
-          src={invoiceUrl}
-          className="w-full h-[600px] border rounded-lg"
-          title="Invoice PDF"
-        />
+                      <CardContent className="space-y-4">
+                        <iframe
+                          src={invoiceUrl}
+                          className="w-full h-[600px] border rounded-lg"
+                          title="Invoice PDF"
+                        />
 
-        <Button
-          className="w-full"
-          onClick={() => {
-            const iframe = document.querySelector(
-              "iframe"
-            ) as HTMLIFrameElement;
-            iframe?.contentWindow?.print();
-          }}
-        >
-          🖨️ طباعة الفاتورة
-        </Button>
-      </CardContent>
-    </Card>
-  )}
-</div>
+                        <Button
+                          className="w-full"
+                          onClick={() => {
+                            const iframe = document.querySelector(
+                              "iframe"
+                            ) as HTMLIFrameElement;
+                            iframe?.contentWindow?.print();
+                          }}
+                        >
+                          🖨️ طباعة الفاتورة
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
 
               </TabsContent>
               <AnimatePresence>
@@ -1337,7 +1139,6 @@ export default function CashierPOS() {
                           </div>
                         </>
                       )}
-
                       {/* الأزرار */}
                       {step === "select" && (
                         <>
@@ -1357,10 +1158,8 @@ export default function CashierPOS() {
                           </div>
                         </>
                       )}
-
                       {step === "cash" && (
                         <>
-
                           <h2 className="text-xl font-semibold mb-1">إتمام الدفع النقدي</h2>
                           <p className="text-gray-500 mb-4 text-sm">أدخل المبلغ المدفوع</p>
                           {activeTab === "pos" ? (
@@ -1434,7 +1233,6 @@ export default function CashierPOS() {
                               الباقي: <span className="text-green-600">{change} ﷼</span>
                             </p>
                           )}
-
                           <div className="flex justify-between w-full px-6 mt-4">
                             <button
                               onClick={handleCancel}
@@ -1455,8 +1253,6 @@ export default function CashierPOS() {
                   </>
                 )}
               </AnimatePresence>
-
-
             </Tabs>
           </div>
         </div>

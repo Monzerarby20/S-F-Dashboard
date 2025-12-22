@@ -264,9 +264,11 @@ const updateProductMutation = useMutation({
     
   const finalData = {
     ...formData,
+    quantity_on_hand: formData.quantity_on_hand,
     store: selectedStore || userStoreId, // 👈 لازم تتبعت
     images: images, // ولو API طالب الصور
   };
+  console.log("Data That send to updated product",finalData)
     updateProductMutation.mutate({ slug: productSlug, data: finalData });
   };
 

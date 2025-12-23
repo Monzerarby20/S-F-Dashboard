@@ -12,10 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowRight, Save, Plus, X, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
-import axios from "axios";
-import { getCategories, getStores, getProductBySlug , updateProduct} from "@/services/products";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { getCategories, getStores, getProductBySlug , updateProduct, updateInventory} from "@/services/products";
 
 export default function ProductFormEdit() {
   const { user } = useAuth();
@@ -32,7 +30,7 @@ export default function ProductFormEdit() {
   
   // Get store_id from current user
   const userStoreId = (user as any)?.store_id || (user as any)?.store || '9';
-  const savedStoreSlug = localStorage.getItem("userSlug");
+ 
     const { slug } = useParams();
     const productSlug = slug as string;
     console.log(productSlug)
@@ -258,6 +256,42 @@ const updateProductMutation = useMutation({
       });
     }
   });
+  const updateInventoryMutation = useMutation({
+    mutationFn: async ({ slug, data }: { slug: string; data: any }) => {
+      return await updateInventory(slug, data);
+    },
+  
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory", slug] });
+  
+      toast({
+        title: "تم الحفظ",
+        description: "تم تحديث المخزون بنجاح",
+      });
+      setLocation("/products");
+    },
+  
+    onError: (error: any) => {
+      console.error("❌ Full Error:", error);
+      console.error("❌ Error Response:", error.response);
+      console.error("❌ Error Data:", error.response?.data);
+      console.error("❌ Error Status:", error.response?.status);
+      console.error("❌ Error Message:", error.message);
+  
+      const errorMessage =
+        error.response?.data?.detail ||
+        error.response?.data?.message ||
+        JSON.stringify(error.response?.data) ||
+        "فشل في تحديث المخزون";
+  
+      toast({
+        title: "خطأ",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+  
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -270,6 +304,26 @@ const updateProductMutation = useMutation({
   };
   console.log("Data That send to updated product",finalData)
     updateProductMutation.mutate({ slug: productSlug, data: finalData });
+    
+  };
+
+  const handleSubmitInventory = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+  const finalData = {
+  
+    quantity_on_hand: Number(formData.quantity_on_hand),
+    store: Number(selectedStore) || userStoreId, // 👈 لازم تتبعت
+    product: formData.item_number,
+  
+    
+    reserved_quantity: 5,
+    min_stock_level: Number(formData.reorder_level),
+    max_stock_level: Number(formData.max_stock_level),
+    cost_per_unit: Number(formData.cost_per_unit)
+  };
+  console.log("Data That send to updated product",finalData)
+  updateInventoryMutation.mutate({ slug: productSlug, data: finalData });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -740,13 +794,30 @@ const updateProductMutation = useMutation({
                   </div>
                 </CardContent>
               </Card>
+               {/* Actions for Product Details */}
+               <div className="flex items-center justify-end gap-4">
+                <Button type="button" onClick={handleCancel} variant="outline">
+                  إلغاء
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="bg-primary hover:bg-primary/90"
+                  disabled={updateProductMutation.isPending}
+                >
+                  <Save className="h-4 w-4 ml-2" />
+                  {updateProductMutation.isPending ? "جاري الحفظ..." : "حفظ التعديلات"}
+                </Button>
+              </div>
 
+              </form>
               {/* Inventory */}
+            <form onSubmit={handleSubmitInventory}>
               <Card>
                 <CardHeader>
                   <CardTitle>المخزون</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-2">الكمية في المخزون</label>
@@ -756,7 +827,7 @@ const updateProductMutation = useMutation({
                         value={formData.quantity_on_hand}
                         onChange={handleChange}
                         placeholder="0"
-                      />
+                        />
                     </div>
 
                     <div>
@@ -780,7 +851,7 @@ const updateProductMutation = useMutation({
                         value={formData.max_stock_level}
                         onChange={handleChange}
                         placeholder="0"
-                      />
+                        />
                     </div>
 
                     <div>
@@ -792,7 +863,7 @@ const updateProductMutation = useMutation({
                         value={formData.cost_per_unit}
                         onChange={handleChange}
                         placeholder="0.00"
-                      />
+                        />
                     </div>
                   </div>
 
@@ -803,12 +874,12 @@ const updateProductMutation = useMutation({
                       value={formData.location_in_store}
                       onChange={handleChange}
                       placeholder="مثال: قسم الموبايلات - رف A3"
-                    />
+                      />
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Actions */}
+              {/* Actions for Inventory Details */}
               <div className="flex items-center justify-end gap-4">
                 <Button type="button" onClick={handleCancel} variant="outline">
                   إلغاء
@@ -816,10 +887,10 @@ const updateProductMutation = useMutation({
                 <Button 
                   type="submit" 
                   className="bg-primary hover:bg-primary/90"
-                  disabled={updateProductMutation.isPending}
-                >
+                  disabled={updateInventoryMutation.isPending}
+                  >
                   <Save className="h-4 w-4 ml-2" />
-                  {updateProductMutation.isPending ? "جاري الحفظ..." : "حفظ التعديلات"}
+                  {updateInventoryMutation.isPending ? "جاري الحفظ..." : "حفظ التعديلات"}
                 </Button>
               </div>
             </form>

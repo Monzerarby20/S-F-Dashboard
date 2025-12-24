@@ -234,6 +234,7 @@ export default function ProductFormNew() {
       }
 
       console.log('Sending payload:', payload);
+      console.log("New Product Data ", data)
 
       const response = await axios.post(
         `${API_BASE_URL}catalog/products/`,

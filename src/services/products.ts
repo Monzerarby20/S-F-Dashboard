@@ -147,9 +147,9 @@ export const updateProduct = async (slug: string, data: any) => {
   }
 };
 
-export const updateInventory = async (slug: string,data: object) => {
+export const updateInventory = async (product_id: Number,data: object) => {
   try{
-      const response = await api.put(`catalog/inventory/${slug}/`,data)
+      const response = await api.put(`catalog/inventory/${product_id}/`,data)
       console.log("Updated Inventory successfully",response)
       return response.data
   }catch(error){

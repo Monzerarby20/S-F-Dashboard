@@ -33,6 +33,8 @@ export default function ProductFormEdit() {
  
     const { slug } = useParams();
     const productSlug = slug as string;
+    const productId = Number(productSlug.split("-")[1]);
+
     console.log(productSlug)
 
     const { data: productData, isLoading: productLoading } = useQuery({
@@ -257,12 +259,12 @@ const updateProductMutation = useMutation({
     }
   });
   const updateInventoryMutation = useMutation({
-    mutationFn: async ({ slug, data }: { slug: string; data: any }) => {
-      return await updateInventory(slug, data);
+    mutationFn: async ({ product_id, data }: { product_id: Number; data: any }) => {
+      return await updateInventory(product_id, data);
     },
   
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory", slug] });
+      queryClient.invalidateQueries({ queryKey: ["inventory", productId] });
   
       toast({
         title: "تم الحفظ",
@@ -314,16 +316,13 @@ const updateProductMutation = useMutation({
   
     quantity_on_hand: Number(formData.quantity_on_hand),
     store: Number(selectedStore) || userStoreId, // 👈 لازم تتبعت
-    product: formData.item_number,
-  
-    
-    reserved_quantity: 5,
-    min_stock_level: Number(formData.reorder_level),
+    product: productId,  
+    reorder_level: Number(formData.reorder_level),
     max_stock_level: Number(formData.max_stock_level),
     cost_per_unit: Number(formData.cost_per_unit)
   };
   console.log("Data That send to updated product",finalData)
-  updateInventoryMutation.mutate({ slug: productSlug, data: finalData });
+  updateInventoryMutation.mutate({ product_id: productId, data: finalData });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

@@ -14,12 +14,12 @@ import { ScanBarcode, ShoppingCart, Plus, Minus, X, Menu, Package, QrCode, Credi
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import QuickCustomerAdd from "@/components/customers/quick-customer-add";
-import { checkoutProcess, getProductByBartcode, removeProduct, updateCartItem, getSummary, emptyCart, addToCartApi, getCartItem, getOrderByOrd, verifyOrder } from "@/services/cashier";
+import { checkoutProcess, getProductByBartcode, removeProduct, updateCartItem, getSummary, emptyCart, addToCartApi, getCartItem, getOrderByOrd, verifyOrder, fetchQROrderByCode } from "@/services/cashier";
 import SixPointsIcon from "@/components/ui/SixPointsIcon";
 import { getStoreBySlug } from "@/services/stores";
 import { motion, AnimatePresence } from "framer-motion";
 import { BarcodeScanner } from "@/components/common/BarcodeScanner";
-import { VAT_RATE, TOTAL_MULTIPLIER } from "@/constants/cashier";
+
 import {
   calculateSubtotal,
   calculateVAT,
@@ -27,17 +27,6 @@ import {
 } from "@/utils/pos/calculations";
 import { useCartOperations } from "@/hooks/pos/useCartOperations";
 
-
-
-
-
-interface CartItem {
-  id: number;
-  name: string;
-  price: number;
-  quantity: number;
-  barcode?: string;
-}
 
 interface QROrderItem {
   productId: number;
@@ -423,29 +412,7 @@ export default function CashierPOS() {
       verifyOrderMutation.mutate(payload)
     }
   };
-  //Update item in cart
-  const updateCartMutation = useMutation({
-    mutationFn: ({ cartItemId, editedData }: { cartItemId: number; editedData: any }) =>
-      updateCartItem(cartItemId, editedData),
-    onSuccess: (data) => {
-      toast({
-        title: "تم التحديث",
-        description: "تم تعديل المنتج في السلة بنجاح",
-      });
-      console.log("📝 Product updated:", data);
-      queryClient.invalidateQueries({ queryKey: ["cartApi"] });
-      queryClient.invalidateQueries({ queryKey: ['cartSummary'] });
-
-    },
-    onError: (error) => {
-      toast({
-        title: "خطأ في التحديث",
-        description: "فشل تعديل المنتج في السلة",
-        variant: "destructive",
-      });
-      console.error("❌ Error updating product:", error);
-    },
-  });
+ 
 
 
   // QR Order mutations
@@ -1196,13 +1163,15 @@ export default function CashierPOS() {
                               إلغاء
                             </button>
                             <button
+                              disabled={processOrderMutation.isPending}
+
                               onClick={() => {
                                 handleProcessOrder3();
                                 handleProcessOrder();
                               }}
                               className="bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg transition"
                             >
-                              إصدار الفاتورة
+                              {processOrderMutation.isPending ? "جارٍ الإصدار..." : "إصدار الفاتورة"}
                             </button>
                           </div>
                         </>
@@ -1241,10 +1210,11 @@ export default function CashierPOS() {
                               إلغاء
                             </button>
                             <button
+                            
                               onClick={handleProcessOrder}
                               className="bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg transition"
                             >
-                              إصدار الفاتورة
+                              {processOrderMutation.isPending ? "جارٍ الإصدار..." : "إصدار الفاتورة"}
                             </button>
                           </div>
                         </div>

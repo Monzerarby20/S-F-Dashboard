@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import axios from "axios";
 import { getCategories, getStores } from "@/services/products";
+import { getAllStores, getStoreBySlug } from "@/services/stores";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -33,6 +34,20 @@ export default function ProductFormNew() {
   // Get store_id from current user
   const userStoreId = (user as any)?.store_id || (user as any)?.store || '9';
   const savedStoreSlug = localStorage.getItem("userSlug");
+  
+
+  const { data: userStore = [], isLoading, error } = useQuery({
+    queryKey: ['userStore'],
+    queryFn: () => {
+      if (isAdmin === "admin" ){
+        return getAllStores();
+      } else{
+        return getStoreBySlug(savedStoreSlug);
+      }
+     
+    }
+  });
+  console.log("Stores That I featched",userStore)
 
   // Selected store state (Admin can change it, regular user uses their store)
   const [selectedStore, setSelectedStore] = useState<string>("");
@@ -51,15 +66,16 @@ export default function ProductFormNew() {
   const stores = storesData?.results || storesData || [];
   
   // Set default selected store when stores load
+  // تعيين المتجر تلقائيًا
   useEffect(() => {
-    if (stores.length > 0 && !selectedStore) {
-      // If admin, don't select by default (let them choose)
-      // If regular user, select their store
-      if (!isAdmin && userStoreId) {
-        setSelectedStore(userStoreId.toString());
-      }
+    if (!userStore) return;
+    if (isAdmin) return;
+  
+    // تأكد إن فيه id فعلاً
+    if (userStore?.id) {
+      setSelectedStore(String(userStore.id));
     }
-  }, [stores, selectedStore, isAdmin, userStoreId]);
+  }, [userStore, isAdmin]);
   
   console.log('🏬 Stores count:', stores.length);
   
@@ -76,48 +92,48 @@ export default function ProductFormNew() {
     queryFn: () => getCategories(selectedStore),
     enabled: !!user && !!selectedStore,
   });
-  useEffect(() => {
-    if (!stores.length) return;
+  // useEffect(() => {
+  //   if (!stores.length) return;
   
-    const savedStoreSlug = localStorage.getItem("userSlug");
+  //   const savedStoreSlug = localStorage.getItem("userSlug");
   
-    // لو المستخدم Admin → بلاش نختارله حاجة
-    if (isAdmin) return;
+  //   // لو المستخدم Admin → بلاش نختارله حاجة
+  //   if (isAdmin) return;
   
-    // لو أصلا اخترنا متجر قبل كده → بلاش نغيره
-    if (selectedStore) return;
+  //   // لو أصلا اخترنا متجر قبل كده → بلاش نغيره
+  //   if (selectedStore) return;
   
-    if (savedStoreSlug) {
-      const matchedStore = stores.find(
-        (store: any) => store.slug === savedStoreSlug
-      );
+  //   if (savedStoreSlug) {
+  //     const matchedStore = stores.find(
+  //       (store: any) => store.slug === savedStoreSlug
+  //     );
   
-      if (matchedStore) {
-        setSelectedStore(matchedStore.id.toString());
-        console.log("🎯 Auto-selected store:", matchedStore);
-      }
-    }
-  }, [stores, selectedStore, isAdmin]);
-  useEffect(() => {
-    if (!stores.length) return;
-    if (isAdmin) return;
-    if (selectedStore) return;
+  //     if (matchedStore) {
+  //       setSelectedStore(userStore?.id.toString());
+  //       console.log("🎯 Auto-selected store:", matchedStore);
+  //     }
+  //   }
+  // }, [stores, selectedStore, isAdmin]);
+  // useEffect(() => {
+  //   if (!stores.length) return;
+  //   if (isAdmin) return;
+  //   if (selectedStore) return;
   
-    const savedStoreSlug = localStorage.getItem("store_slug");
+  //   const savedStoreSlug = localStorage.getItem("store_slug");
   
-    if (savedStoreSlug) {
-      const matchedStore = stores.find((s: any) => s.slug === savedStoreSlug);
-      if (matchedStore) {
-        setSelectedStore(matchedStore.id.toString());
-        return;
-      }
-    }
+  //   if (savedStoreSlug) {
+  //     const matchedStore = stores.find((s: any) => s.slug === savedStoreSlug);
+  //     if (matchedStore) {
+  //       setSelectedStore(userStore?.id.toString());
+  //       return;
+  //     }
+  //   }
   
-    // fallback
-    if (userStoreId) {
-      setSelectedStore(userStoreId.toString());
-    }
-  }, [stores, selectedStore, isAdmin, userStoreId]);
+  //   // fallback
+  //   if (userStoreId) {
+  //     setSelectedStore(userStoreId.toString());
+  //   }
+  // }, [stores, selectedStore, isAdmin, userStoreId,userStore]);
   
   
   const categoriesLoading = allCategoriesLoading || storeCategoriesLoading;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
@@ -14,7 +14,7 @@ import { ScanBarcode, ShoppingCart, Plus, Minus, X, Menu, Package, QrCode, Credi
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import QuickCustomerAdd from "@/components/customers/quick-customer-add";
-import { checkoutProcess, getProductByBartcode, removeProduct, updateCartItem, getSummary, emptyCart, addToCartApi, getCartItem, getOrderByOrd, verifyOrder, fetchQROrderByCode } from "@/services/cashier";
+import { checkoutProcess, getProductByBartcode,  getSummary,  getCartItem, getOrderByOrd, verifyOrder, fetchQROrderByCode } from "@/services/cashier";
 import SixPointsIcon from "@/components/ui/SixPointsIcon";
 import { getStoreBySlug } from "@/services/stores";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,30 +26,7 @@ import {
   calculateGrandTotal,
 } from "@/utils/pos/calculations";
 import { useCartOperations } from "@/hooks/pos/useCartOperations";
-
-
-interface QROrderItem {
-  productId: number;
-  name: string;
-  barcode: string;
-  quantity: number;
-  unitPrice: number;
-  scannedQuantity: number;
-  isComplete: boolean;
-}
-
-interface QROrder {
-  id: number;
-  qrCode: string;
-  customerId?: number;
-  customerName?: string;
-  totalAmount: number;
-  paymentStatus: string;
-  paymentTransactionId?: string;
-  items: QROrderItem[];
-  status: string;
-  createdAt: string;
-}
+import type  {QROrder} from "@/types/orders"
 
 export default function CashierPOS() {
   const {
@@ -61,7 +38,6 @@ export default function CashierPOS() {
   } = useCartOperations();
   const { user } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   // Popup state
   const [showPopup, setShowPopup] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -85,7 +61,6 @@ export default function CashierPOS() {
   const [isQRScanning, setIsQRScanning] = useState(false);
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>("https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")
   // Customer Orders Verification State
-  const [customerOrders, setCustomerOrders] = useState<any[]>([]);
 
   const [isOrderDone, setIsOrderDone] = useState<boolean>(false)
   //order state

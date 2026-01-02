@@ -7,7 +7,6 @@ import {
     updateCartItem,
     removeProduct,
     emptyCart,
-    getProductByBartcode
 } from "@/services/cashier";
 
 import type { CartItem } from "@/types/cart"

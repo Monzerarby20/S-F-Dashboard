@@ -318,7 +318,7 @@ export default function ProductsList() {
                     </thead>
                     <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                       {productsWithInventory.map((product: any) => {
-                        const finalPrice = calculateFinalPrice(product);
+                        const final_price  = calculateFinalPrice(product);
                         const inv = product.inventory;
                         
                         return (
@@ -371,7 +371,7 @@ export default function ProductsList() {
                               )}
                             </td>
                             <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
-                              {finalPrice.toLocaleString('ar-SA')} ر.س
+                              {product.final_price.toLocaleString('ar-SA')} ر.س
                             </td>
                             <td className="px-4 py-3 text-sm">
                               {product.is_on_sale && (

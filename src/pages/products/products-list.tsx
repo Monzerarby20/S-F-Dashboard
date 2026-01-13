@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
@@ -22,7 +22,7 @@ export default function ProductsList() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+  console.log("User Data: ",user)
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
@@ -33,8 +33,12 @@ export default function ProductsList() {
   const [isFeaturedFilter, setIsFeaturedFilter] = useState("all");
   const [stockStatusFilter, setStockStatusFilter] = useState("all");
 
+  const isOwner = user?.role_display === "owner";
+
+
+
   const { data: productsData, isLoading } = useQuery({
-    queryKey: ['products', page, pageSize, search, categoryFilter, brandFilter, minPrice, maxPrice, isFeaturedFilter],
+    queryKey: ['products', page, pageSize, search, categoryFilter, brandFilter, minPrice, maxPrice, isFeaturedFilter, user?.store_slug ],
     queryFn: () => getAllProducts({
       page,
       page_size: pageSize,
@@ -43,11 +47,13 @@ export default function ProductsList() {
       price__gte: minPrice || undefined,
       price__lte: maxPrice || undefined,
       is_featured: isFeaturedFilter === 'all' ? undefined : isFeaturedFilter,
-      search: search || undefined
+      search: search || undefined,
+      store_slug: isOwner ? user.store_slug : undefined, // 🔥 هنا الصح
     }),
+  enabled: isOwner && !!user?.store_slug,
   });
+  
 
-  // Fetch inventory data with filters
   const { data: inventoryData } = useQuery({
     queryKey: ['inventory', stockStatusFilter],
     queryFn: () => getInventory({

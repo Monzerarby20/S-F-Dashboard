@@ -18,6 +18,8 @@ export interface User {
   role: string;
   permissions: string[];
   branchId: number | null;
+  store_name: string;
+  store_slug: string;
 }
 
 interface AuthContextType {

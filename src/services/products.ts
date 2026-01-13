@@ -158,3 +158,15 @@ export const updateInventory = async (product_id: Number,data: object) => {
     throw error
   }
 }
+
+export const getStoreProducts = async (store_id: string) =>{
+  try{
+    const response = await api.get(`catalog/products/store/${store_id}/`)
+    console.log("Store Products fetched: ", response)
+    return response.data
+
+  }catch(err){
+    console.log("couldn't get store products",err)
+    throw err
+  }
+}

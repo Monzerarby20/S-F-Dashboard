@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
@@ -15,7 +15,7 @@ import { Search, Plus, Upload, Edit, Trash2, ChevronLeft, ChevronRight, Package 
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-import { getAllProducts, getInventory } from "@/services/products";
+import { getAllProducts, getInventory, getStoreProducts, getStores } from "@/services/products";
 
 
 export default function ProductsList() {
@@ -34,24 +34,40 @@ export default function ProductsList() {
   const [stockStatusFilter, setStockStatusFilter] = useState("all");
 
   const isOwner = user?.role_display === "owner";
+  // Fetch stores
+  const { data: storesData, isLoading: storesLoading } = useQuery({
+    queryKey: ['stores'],
+    queryFn: () => getStores(),
+    enabled: !!user,
+  });
 
 
+  console.log("Stores data", storesData)
+  
+  const storeId = useMemo(() => {
+    if (!isOwner || !user?.store_slug || !storesData) return null;
+  
+    const store = storesData.results.find(
+      (s) => s.slug === user.store_slug
+    );
+  
+    return store?.id ?? null;
+  }, [isOwner, user?.store_slug, storesData]);
+  
 
   const { data: productsData, isLoading } = useQuery({
-    queryKey: ['products', page, pageSize, search, categoryFilter, brandFilter, minPrice, maxPrice, isFeaturedFilter, user?.store_slug ],
-    queryFn: () => getAllProducts({
-      page,
-      page_size: pageSize,
-      category: categoryFilter || undefined,
-      brand: brandFilter || undefined,
-      price__gte: minPrice || undefined,
-      price__lte: maxPrice || undefined,
-      is_featured: isFeaturedFilter === 'all' ? undefined : isFeaturedFilter,
-      search: search || undefined,
-      store_slug: isOwner ? user.store_slug : undefined, // 🔥 هنا الصح
-    }),
-  enabled: isOwner && !!user?.store_slug,
+    queryKey: ['products', isOwner, storeId],
+    queryFn: () => {
+      if (isOwner && storeId) {
+        return getStoreProducts(storeId);
+      }
+      return getAllProducts({ page, page_size: pageSize });
+    },
+    enabled: !!user,
   });
+  console.log("Store Id ", storeId)
+  console.log("Is owner", isOwner)
+  
   
 
   const { data: inventoryData } = useQuery({

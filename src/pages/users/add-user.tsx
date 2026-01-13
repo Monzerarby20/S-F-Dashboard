@@ -309,15 +309,16 @@ export default function AddUserPage() {
       password: data.password,
       confirm_password: data.confirm_password,
       date_of_birth: data.date_of_birth,
-      store_id: data.store_id || null,
       role: data.role,
-      branch_id: data.branch_id || null,
       job_title: data.job_title,
       is_active: !!data.is_active,
+      ...(data.store_id && { store_id: data.store_id }),
+      ...(data.branch_id && { branch_id: data.branch_id }),
     };
-
+    
+      addUserMutation.mutate(payload);
     console.log("Submitting user:", payload);
-    addUserMutation.mutate(payload);
+
   };
 
   // const handlePermissionToggle = (permissionId: number, checked: boolean) => {

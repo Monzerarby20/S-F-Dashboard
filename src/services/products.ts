@@ -11,6 +11,7 @@ interface ProductsParams {
   price__lte?: string;
   is_featured?: string;
   search?: string;
+  store_name: string;
 }
 
 interface InventoryParams {

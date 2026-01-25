@@ -73,6 +73,7 @@ export const getAllUsers = async (): Promise<User[]> => {
     }
 
     console.log(`✅ Fetched ${allUsers.length} users in total`);
+    console.log("users", allUsers)
     return allUsers;
   } catch (error: any) {
     console.error("❌ Error fetching users:", error.response?.data || error.message);

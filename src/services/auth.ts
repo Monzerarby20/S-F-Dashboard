@@ -107,7 +107,7 @@ let userRole: string | null = null;
 export const signInWithEmailAndPassword = async (email: string, password: string) => {
   try {
     const response = await api.post(`auth/token/`, { email, password });
-
+    console.log("Response", response)
     const { access, refresh, user_id, store_slug, role } = response.data;
     localStorage.setItem("token", access);
     localStorage.setItem("refresh-token", refresh);

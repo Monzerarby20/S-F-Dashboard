@@ -92,6 +92,7 @@ export default function ProductFormNew() {
     queryFn: () => getCategories(selectedStore),
     enabled: !!user && !!selectedStore,
   });
+  console.log("Categories",storeCategoriesData)
   // useEffect(() => {
   //   if (!stores.length) return;
   
@@ -144,7 +145,7 @@ export default function ProductFormNew() {
   
   // Get store categories
   const storeCategories = storeCategoriesData?.results || [];
-  
+  console.log("Categories",storeCategories.length)
   // Merge: Global + Store categories (remove duplicates)
   const categories = selectedStore 
     ? [...globalCategoriesOnly, ...storeCategories.filter((cat: any) => cat.parent !== null)]
@@ -178,13 +179,13 @@ export default function ProductFormNew() {
 
   const [formData, setFormData] = useState({
     name: "",
-    sku: "",
+    // sku: "",
     category: "",
     price: "",
     description: "",
     short_description: "",
     barcode: "",
-    item_number: "",
+    // item_number: "",
     brand: "",
     compare_price: "",
     cost_price: "",
@@ -210,7 +211,7 @@ export default function ProductFormNew() {
       // Prepare payload
       const payload: any = {
         name: data.name,
-        sku: data.sku,
+        // sku: data.sku,
         category: parseInt(data.category),
         price: parseFloat(data.price),
         store: parseInt(selectedStore),  // ← Add selected store
@@ -220,7 +221,7 @@ export default function ProductFormNew() {
       if (data.description) payload.description = data.description;
       if (data.short_description) payload.short_description = data.short_description;
       if (data.barcode) payload.barcode = data.barcode;
-      if (data.item_number) payload.item_number = data.item_number;
+      // if (data.item_number) payload.item_number = data.item_number;
       if (data.brand) payload.brand = data.brand;
       if (data.compare_price) payload.compare_price = parseFloat(data.compare_price);
       if (data.cost_price) payload.cost_price = parseFloat(data.cost_price);
@@ -354,7 +355,7 @@ export default function ProductFormNew() {
                       />
                     </div>
 
-                    <div>
+                    {/* <div>
                       <label className="block text-sm font-medium mb-2">
                         رمز المنتج (SKU) <span className="text-red-500">*</span>
                       </label>
@@ -365,7 +366,7 @@ export default function ProductFormNew() {
                         placeholder="SKU-001"
                         required
                       />
-                    </div>
+                    </div> */}
                   </div>
 
                   {/* Store Selection */}
@@ -429,7 +430,7 @@ export default function ProductFormNew() {
                               <SelectValue placeholder="اختر القسم" />
                             </SelectTrigger>
                             <SelectContent>
-                              {categories.map((cat: any) => (
+                              {storeCategories.map((cat: any) => (
                                 <SelectItem key={cat.id} value={cat.id.toString()}>
                                   <div className="flex items-center justify-between w-full">
                                     <span>{cat.name}</span>
@@ -498,7 +499,7 @@ export default function ProductFormNew() {
                       />
                     </div>
 
-                    <div>
+                    {/* <div>
                       <label className="block text-sm font-medium mb-2">رقم الصنف</label>
                       <Input
                         name="item_number"
@@ -506,7 +507,7 @@ export default function ProductFormNew() {
                         onChange={handleChange}
                         placeholder="ITEM-001"
                       />
-                    </div>
+                    </div> */}
                   </div>
 
                   <div>

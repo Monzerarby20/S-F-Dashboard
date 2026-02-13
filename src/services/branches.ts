@@ -46,3 +46,14 @@ export const deleteBranch = async(storeSlug:string,branchSlug:string) =>{
         throw error;
     }
 }
+// /api/stores/branches/by-id/{id}/
+export const getBranchById = async(branchId:number) =>{
+    try{
+        const response = await api.get(`stores/branches/by-id/${branchId}`);
+        console.log("Fetched Branch ",response)
+        return response.data
+    }catch(error){
+        console.error("Error fetching branch",error)
+        throw error
+    }
+}

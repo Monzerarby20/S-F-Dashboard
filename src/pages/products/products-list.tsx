@@ -384,16 +384,16 @@ export default function ProductsList() {
                               {product.store_name || '-'}
                             </td>
                             <td className="px-4 py-3 text-sm">
-                              {product.compare_price ? (
+                              {product.price ? (
                                 <span className="text-gray-400 line-through">
-                                  {Number(product.compare_price).toLocaleString('ar-SA')} ر.س
+                                  {Number(product.price).toLocaleString('ar-SA')} ر.س
                                 </span>
                               ) : (
                                 <span className="text-gray-400">-</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
-                              {finalPrice.toLocaleString('ar-SA')} ر.س
+                              {product.final_price.toLocaleString('ar-SA')} ر.س
                             </td>
                             <td className="px-4 py-3 text-sm">
                               {product.is_on_sale && (

@@ -26,6 +26,7 @@ import {
   calculateGrandTotal,
 } from "@/utils/pos/calculations";
 import { useCartOperations } from "@/hooks/pos/useCartOperations";
+import { getBranchById } from "@/services/branches";
 
 
 interface QROrderItem {
@@ -91,6 +92,10 @@ export default function CashierPOS() {
   //order state
   const [orderState, setOrderState] = useState<boolean>(false)
   const [ordValue, setOrdValue] = useState<string>("")
+  // Fetch user Data
+  const { user: currentUser } = useAuth();
+  console.log("current user", currentUser)
+  console.log("current user branch", currentUser?.branch_display)
 
   // Fetch user store data
   const userStoreSlug: string = localStorage.getItem("userSlug")
@@ -115,8 +120,15 @@ export default function CashierPOS() {
     console.log("fetched current store", store);
   }, [store]);
 
-  const storeLatitude = store?.latitude ?? null;
-  const storeLongitude = store?.longitude ?? null;
+  // fetch branch data from user data 
+  const { data: branch, isLoading: branchLoading, error: branchError } = useQuery({
+    queryKey: ['branch', user?.branch_display],
+    queryFn: () => getBranchById(user?.branch_display),
+    enabled: !!user?.branch_display,
+  })
+  console.log("fetched branch", branch)
+  const storeLatitude = branch?.latitude ?? null;
+  const storeLongitude = branch?.longitude ?? null;
   console.log("fetched current store", store)
 
   console.log(storeLatitude, storeLongitude)

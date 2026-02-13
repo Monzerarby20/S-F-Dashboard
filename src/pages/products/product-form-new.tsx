@@ -180,12 +180,14 @@ export default function ProductFormNew() {
   const [formData, setFormData] = useState({
     name: "",
     // sku: "",
+    name_en: "",
     category: "",
     price: "",
     description: "",
     short_description: "",
     barcode: "",
     // item_number: "",
+    unit_number: "",
     brand: "",
     compare_price: "",
     cost_price: "",
@@ -212,6 +214,8 @@ export default function ProductFormNew() {
       const payload: any = {
         name: data.name,
         // sku: data.sku,
+        name_en: data.name_en,
+        unit_number: data.unit_number,
         category: parseInt(data.category),
         price: parseFloat(data.price),
         store: parseInt(selectedStore),  // ← Add selected store
@@ -263,6 +267,8 @@ export default function ProductFormNew() {
           },
         }
       );
+      console.log("Response from create product",response.data)
+      console.log("Payload that send to create product",payload)
 
       return response.data;
     },
@@ -296,7 +302,7 @@ export default function ProductFormNew() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createProductMutation.mutate(formData);
+    createProductMutation.mutate(formData as any);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -355,18 +361,18 @@ export default function ProductFormNew() {
                       />
                     </div>
 
-                    {/* <div>
+                    <div>
                       <label className="block text-sm font-medium mb-2">
-                        رمز المنتج (SKU) <span className="text-red-500">*</span>
+                        product name (product name in English)<span className="text-red-500">*</span>
                       </label>
                       <Input
-                        name="sku"
-                        value={formData.sku}
+                        name="name_en"
+                        value={formData.name_en }
                         onChange={handleChange}
-                        placeholder="SKU-001"
+                        placeholder="Product Name in English"
                         required
                       />
-                    </div> */}
+                    </div>
                   </div>
 
                   {/* Store Selection */}
@@ -499,15 +505,15 @@ export default function ProductFormNew() {
                       />
                     </div>
 
-                    {/* <div>
+                    <div>
                       <label className="block text-sm font-medium mb-2">رقم الصنف</label>
                       <Input
-                        name="item_number"
-                        value={formData.item_number}
+                        name="unit_number"
+                        value={formData.unit_number || "Unit Number 1"}
                         onChange={handleChange}
-                        placeholder="ITEM-001"
+                        placeholder="Unit Number"
                       />
-                    </div> */}
+                    </div>
                   </div>
 
                   <div>

@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowRight, Save, Plus, X, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
-
+import { getAllStores, getStoreBySlug } from "@/services/stores";
 import { getCategories, getStores, getProductBySlug , updateProduct, updateInventory} from "@/services/products";
 
 export default function ProductFormEdit() {
@@ -30,14 +30,27 @@ export default function ProductFormEdit() {
   
   // Get store_id from current user
   const userStoreId = (user as any)?.store_id || (user as any)?.store || '9';
- 
+  const savedStoreSlug = localStorage.getItem("userSlug");
     const { slug } = useParams();
     const productSlug = slug as string;
     const productId = Number(productSlug.split("-")[1]);
 
     console.log(productSlug)
 
-    const { data: productData, isLoading: productLoading } = useQuery({
+    const { data: userStore = [], isLoading, error } = useQuery({
+      queryKey: ['userStore'],
+      queryFn: () => {
+        if (isAdmin === "admin" ){
+          return getAllStores();
+        } else{
+          return getStoreBySlug(savedStoreSlug ?? "");
+        }
+       
+      }
+    });
+    console.log("Stores That I featched",userStore)
+
+      const { data: productData, isLoading: productLoading } = useQuery({
         queryKey: ['product', productSlug],
         queryFn: () => getProductBySlug(productSlug),
         enabled: !!productSlug,
@@ -74,6 +87,7 @@ export default function ProductFormEdit() {
           });
       
           setImages(productData.images || []);
+          setSelectedStore(productData.store?.toString() || "");
         }
       }, [productData]);
       
@@ -93,16 +107,15 @@ export default function ProductFormEdit() {
   
   const stores = storesData?.results || storesData || [];
   
-  // Set default selected store when stores load
+  // Set default selected store (same as new product page: use userStore from getStoreBySlug)
   useEffect(() => {
-    if (stores.length > 0 && !selectedStore) {
-      // If admin, don't select by default (let them choose)
-      // If regular user, select their store
-      if (!isAdmin && userStoreId) {
-        setSelectedStore(userStoreId.toString());
-      }
+    if (!userStore) return;
+    if (isAdmin) return;
+    if (selectedStore) return; // already set (e.g. from product on edit)
+    if (userStore?.id) {
+      setSelectedStore(String(userStore.id));
     }
-  }, [stores, selectedStore, isAdmin, userStoreId]);
+  }, [userStore, isAdmin, selectedStore]);
   
   console.log('🏬 Stores count:', stores.length);
   
@@ -119,48 +132,48 @@ export default function ProductFormEdit() {
     queryFn: () => getCategories(selectedStore),
     enabled: !!user && !!selectedStore,
   });
-  useEffect(() => {
-    if (!stores.length) return;
+  // useEffect(() => {
+  //   if (!stores.length) return;
   
-    const savedStoreSlug = localStorage.getItem("userSlug");
+  //   const savedStoreSlug = localStorage.getItem("userSlug");
   
-    // لو المستخدم Admin → بلاش نختارله حاجة
-    if (isAdmin) return;
+  //   // لو المستخدم Admin → بلاش نختارله حاجة
+  //   if (isAdmin) return;
   
-    // لو أصلا اخترنا متجر قبل كده → بلاش نغيره
-    if (selectedStore) return;
+  //   // لو أصلا اخترنا متجر قبل كده → بلاش نغيره
+  //   if (selectedStore) return;
   
-    if (savedStoreSlug) {
-      const matchedStore = stores.find(
-        (store: any) => store.slug === savedStoreSlug
-      );
+  //   if (savedStoreSlug) {
+  //     const matchedStore = stores.find(
+  //       (store: any) => store.slug === savedStoreSlug
+  //     );
   
-      if (matchedStore) {
-        setSelectedStore(matchedStore.id.toString());
-        console.log("🎯 Auto-selected store:", matchedStore);
-      }
-    }
-  }, [stores, selectedStore, isAdmin]);
-  useEffect(() => {
-    if (!stores.length) return;
-    if (isAdmin) return;
-    if (selectedStore) return;
+  //     if (matchedStore) {
+  //       setSelectedStore(matchedStore.id.toString());
+  //       console.log("🎯 Auto-selected store:", matchedStore);
+  //     }
+  //   }
+  // }, [stores, selectedStore, isAdmin]);
+  // useEffect(() => {
+  //   if (!stores.length) return;
+  //   if (isAdmin) return;
+  //   if (selectedStore) return;
   
-    const savedStoreSlug = localStorage.getItem("store_slug");
+  //   const savedStoreSlug = localStorage.getItem("store_slug");
   
-    if (savedStoreSlug) {
-      const matchedStore = stores.find((s: any) => s.slug === savedStoreSlug);
-      if (matchedStore) {
-        setSelectedStore(matchedStore.id.toString());
-        return;
-      }
-    }
+  //   if (savedStoreSlug) {
+  //     const matchedStore = stores.find((s: any) => s.slug === savedStoreSlug);
+  //     if (matchedStore) {
+  //       setSelectedStore(matchedStore.id.toString());
+  //       return;
+  //     }
+  //   }
   
-    // fallback
-    if (userStoreId) {
-      setSelectedStore(userStoreId.toString());
-    }
-  }, [stores, selectedStore, isAdmin, userStoreId]);
+  //   // fallback
+  //   if (userStoreId) {
+  //     setSelectedStore(userStoreId.toString());
+  //   }
+  // }, [stores, selectedStore, isAdmin, userStoreId]);
   
   
   const categoriesLoading = allCategoriesLoading || storeCategoriesLoading;
@@ -459,7 +472,7 @@ const updateProductMutation = useMutation({
                               <SelectValue placeholder="اختر القسم" />
                             </SelectTrigger>
                             <SelectContent>
-                              {categories.map((cat: any) => (
+                              {storeCategories.map((cat: any) => (
                                 <SelectItem key={cat.id} value={cat.id.toString()}>
                                   <div className="flex items-center justify-between w-full">
                                     <span>{cat.name}</span>

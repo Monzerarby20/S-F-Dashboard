@@ -48,13 +48,14 @@ export default function ProductFormEdit() {
         if (productData) {
           setFormData({
             name: productData.name,
-            sku: productData.sku,
+            name_en: productData.name_en,
             category: productData.category?.toString() || "",
             price: productData.price?.toString() || "",
             description: productData.description || "",
             short_description: productData.short_description || "",
             barcode: productData.barcode || "",
-            item_number: productData.item_number || "",
+            //item_number: productData.item_number || "",
+            unit_number: productData.unit_number || "",
             brand: productData.brand || "",
             compare_price: productData.compare_price?.toString() || "",
             cost_price: productData.cost_price?.toString() || "",
@@ -204,13 +205,15 @@ export default function ProductFormEdit() {
 
   const [formData, setFormData] = useState({
     name: "",
-    sku: "",
+    // sku: "",
+    name_en: "",
     category: "",
     price: "",
     description: "",
     short_description: "",
     barcode: "",
-    item_number: "",
+    // item_number: "",
+    unit_number: "",
     brand: "",
     compare_price: "",
     cost_price: "",
@@ -383,13 +386,13 @@ const updateProductMutation = useMutation({
 
                     <div>
                       <label className="block text-sm font-medium mb-2">
-                        رمز المنتج (SKU) <span className="text-red-500">*</span>
+                        product name (product name in English) <span className="text-red-500">*</span>
                       </label>
                       <Input
-                        name="sku"
-                        value={formData.sku}
+                        name="name_en"
+                        value={formData.name_en}
                         onChange={handleChange}
-                        placeholder="SKU-001"
+                        placeholder="Product Name in English"
                         required
                       />
                     </div>
@@ -526,12 +529,12 @@ const updateProductMutation = useMutation({
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">رقم الصنف</label>
+                      <label className="block text-sm font-medium mb-2">Unit Number</label>
                       <Input
-                        name="item_number"
-                        value={formData.item_number}
+                        name="unit_number"
+                        value={formData.unit_number}
                         onChange={handleChange}
-                        placeholder="ITEM-001"
+                        placeholder="Unit Number"
                       />
                     </div>
                   </div>

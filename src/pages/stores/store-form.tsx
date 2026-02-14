@@ -135,11 +135,36 @@ export default function StoreFormPage() {
       },
     }));
   }
+  // update required fields
+  // "name": "string",
+  // "description": "string",
+  // "manager": 0,
+  // "store_type": "physical",
+  // "phone": "7256869240053",
+  // "email": "user@example.com",
+  // "website": "string",
+  // "tax_number": "string",
+  // "commercial_register": "string",
+  // "bank_name": "string",
+  // "bank_account_number": "string",
+  // "iban": "string",
+  // "swift_code": "string",
+  // "address": "string",
+  // "city": "string",
+  // "state": "string",
+  // "country": "string",
+  // "postal_code": "string",
+  // "latitude": "19",
+  // "longitude": "-",
+  // "opening_hours": "string",
+  // "logo": "string",
+  // "banner": "string"
   // Update form when store data is loaded
   useEffect(() => {
     if (store && isEditing) {
       form.reset({
         name: store.name || "",
+        name_en: store.name_en || "",
         description: store.description || "",
         phone: store.phone || "",
         email: store.email || "",
@@ -152,6 +177,7 @@ export default function StoreFormPage() {
         longitude: store.longitude || "",
         store_type: store.store_type || "",
         is_active: store.is_active ?? true,
+        
       });
     }
   }, [store, isEditing, form]);
@@ -315,6 +341,7 @@ export default function StoreFormPage() {
                       />
                     </div>
 
+
                     <FormField
                       control={form.control}
                       name="address"
@@ -331,6 +358,30 @@ export default function StoreFormPage() {
                           <FormMessage />
                         </FormItem>
                       )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="longitude"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>الطول *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="الطول" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="latitude"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>العرض *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="العرض" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
                     />
                     <FormItem>
                       <FormLabel>ساعات العمل</FormLabel>

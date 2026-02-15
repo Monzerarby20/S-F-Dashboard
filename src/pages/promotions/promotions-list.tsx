@@ -24,7 +24,8 @@ import { ar } from "date-fns/locale";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
 import { createPromotion, getAllPromotions } from "../../services/promotion";
-
+import { createFlashSale, updateFlashSale, updateFlashSaleStatus, deleteFlashSale, getFlashSaleById, getFlashSalesByType, searchPromotions, getAllOffers } from "@/services/offers";
+import PromotionsTable from "./promotions-table";
 const promotionSchema = z.object({
   name: z.string().min(1, "اسم العرض مطلوب"),
   slug: z.string().min(1, "الـ slug مطلوب"),
@@ -55,11 +56,14 @@ export default function PromotionsList() {
   //   queryKey: ['/promotions'],
   // });
 
-  const {data : promotions = [] , isLoading} = useQuery({
+  // const {data : promotions = [] , isLoading} = useQuery({
+  //   queryKey: ['/promotions'],
+  //   queryFn: getAllPromotions,
+  // });
+  const { data: promotions = [], isLoading } = useQuery({
     queryKey: ['/promotions'],
-    queryFn: getAllPromotions,
+    queryFn: getAllOffers,
   });
-
   console.log("Fetched promotions:", promotions);
   console.log("Fetched promotions:", typeof(promotions));
 
@@ -546,63 +550,7 @@ export default function PromotionsList() {
           
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.isArray(promotions) && promotions.map((promotion: any) => (
-            <Card key={promotion.id} className="overflow-hidden">
-              {promotion.imageUrl && (
-                <div className="aspect-video relative">
-                  <img
-                    src={promotion.imageUrl}
-                    alt={promotion.title}
-                    className="object-cover w-full h-full"
-                  />
-                </div>
-              )}
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-lg line-clamp-2">
-                    {promotion.title}
-                  </CardTitle>
-                  {getStatusBadge(promotion)}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground line-clamp-3">
-                  {promotion.description}
-                </p>
-                
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>
-                    من: {format(new Date(promotion.startDate), "dd/MM/yyyy")}
-                  </span>
-                  <span>
-                    إلى: {format(new Date(promotion.endDate), "dd/MM/yyyy")}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center pt-4 mt-4 border-t">
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(promotion)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(promotion.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <PromotionsTable />
       )}
     </PageLayout>
   );

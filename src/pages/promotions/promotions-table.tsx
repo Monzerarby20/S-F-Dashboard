@@ -1,131 +1,187 @@
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
-import { getAllOffers } from "@/services/offers";
-//result is an array of objects with the following properties:
-/**
- * {
-    "count": 2,
-    "next": null,
-    "previous": null,
-    "results": [
-        {
-            "id": 3,
-            "products": [],
-            "created_by_email": "kdb@g.com",
-            "name": "عرض شاي الكبوس المميز",
-            "slug": "mtjr-msry",
-            "description": "عرض خاص على شاي الكبوس الفاخر",
-            "promotion_type": "flash_sale",
-            "banner_image_url": null,
-            "landing_page_url": null,
-            "is_active": true,
-            "is_featured": true,
-            "start_date": "2024-01-15",
-            "end_date": "2024-01-20",
-            "target_audience": "all",
-            "budget": "50000.00",
-            "spent_amount": "0.00",
-            "goal_type": "sales_amount",
-            "goal_value": "100000.00",
-            "current_value": "0.00",
-            "terms_and_conditions": "شروط وأحكام العرض...",
-            "created_at": "2026-02-15T07:06:34.046850+02:00",
-            "updated_at": "2026-02-15T07:06:34.046876+02:00",
-            "created_by": 34,
-            "stores": [],
-            "branches": []
-        },
-        {
-            "id": 2,
-            "products": [],
-            "created_by_email": "kdb@g.com",
-            "name": "عرض الصيف الكبير",
-            "slug": "mtjr",
-            "description": null,
-            "promotion_type": "seasonal",
-            "banner_image_url": null,
-            "landing_page_url": null,
-            "is_active": true,
-            "is_featured": false,
-            "start_date": "2024-06-01",
-            "end_date": "2024-08-31",
-            "target_audience": "all",
-            "budget": "100000.00",
-            "spent_amount": "0.00",
-            "goal_type": "sales_amount",
-            "goal_value": null,
-            "current_value": "0.00",
-            "terms_and_conditions": null,
-            "created_at": "2026-02-15T06:53:56.138553+02:00",
-            "updated_at": "2026-02-15T06:53:56.138568+02:00",
-            "created_by": 34,
-            "stores": [],
-            "branches": []
-        }
-    ]
-}
- * 
- */
+import { Badge } from "@/components/ui/badge";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { deleteFlashSale, getAllOffers } from "@/services/offers";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Edit, Trash2 } from "lucide-react";
+import { Link } from "wouter";
+import { queryClient } from "@/lib/queryClient";
+import { toast } from "@/hooks/use-toast";
+
 export default function PromotionsTable() {
-    const { data: promotions = [], isLoading } = useQuery({
-        queryKey: ['/promotions'],
-        queryFn: getAllOffers,
-    });
-    console.log("Promotions:", promotions);
-    return (
-        <div className="flex flex-col gap-4">   
-            <h1>Promotions</h1>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Start Date</TableHead>
-                        <TableHead>End Date</TableHead>
-                        <TableHead>Is Active</TableHead>
-                        <TableHead>Is Featured</TableHead>
-                        <TableHead>Target Audience</TableHead>
-                        <TableHead>Budget</TableHead>
-                        <TableHead>Spent Amount</TableHead>
-                        <TableHead>Goal Type</TableHead>
-                        <TableHead>Goal Value</TableHead>
-                        <TableHead>Current Value</TableHead>
-                        <TableHead>Terms and Conditions</TableHead>
-                        <TableHead>Created At</TableHead>
-                        <TableHead>Updated At</TableHead>
-                        <TableHead>Created By</TableHead>
-                        <TableHead>Stores</TableHead>
-                        <TableHead>Branches</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {promotions.map((promotion: any) => (
-                        <TableRow key={promotion.id}>
-                            <TableCell>{promotion.name}</TableCell>
-                            <TableCell>{promotion.description}</TableCell>
-                            <TableCell>{promotion.start_date}</TableCell>
-                            <TableCell>{promotion.end_date}</TableCell>
-                            <TableCell>{promotion.is_active}</TableCell>
-                            <TableCell>{promotion.is_featured}</TableCell>
-                            <TableCell>{promotion.target_audience}</TableCell>
-                            <TableCell>{promotion.budget}</TableCell>
-                            <TableCell>{promotion.spent_amount}</TableCell>
-                            <TableCell>{promotion.goal_type}</TableCell>
-                            <TableCell>{promotion.goal_value}</TableCell>
-                            <TableCell>{promotion.current_value}</TableCell>
-                            <TableCell>{promotion.terms_and_conditions}</TableCell>
-                            <TableCell>{promotion.created_at}</TableCell>
-                            <TableCell>{promotion.updated_at}</TableCell>
-                            <TableCell>{promotion.created_by}</TableCell>
-                            <TableCell>{promotion.stores}</TableCell>
-                            <TableCell>{promotion.branches}</TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
+  const { data: promotions = [], isLoading } = useQuery({
+    queryKey: ["/promotions"],
+    queryFn: getAllOffers,
+  });
 
+  const deletePromotionMutation = useMutation({
+    mutationFn: (id: number) => deleteFlashSale(String(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/promotions"] });
+      toast({
+        title: "تم الحذف",
+        description: "تم حذف العرض بنجاح",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "خطأ",
+        description: "فشل في حذف العرض",
+        variant: "destructive",
+      });
+    },
+  });
 
-    )
+  const handleDeletePromotion = (id: number) => {
+    deletePromotionMutation.mutate(id);
+  };
+
+  if (isLoading) {
+    return null;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead className="bg-gray-50 dark:bg-gray-800">
+          <tr>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              الاسم
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              الوصف
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              نوع العرض
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              تاريخ البداية
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              تاريخ النهاية
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              الحالة
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              الميزانية
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              تاريخ الإنشاء
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              الإجراءات
+            </th>
+          </tr>
+        </thead>
+        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+          {promotions.map((promotion: any) => (
+            <tr
+              key={promotion.id}
+              className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              <td className="px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {promotion.name}
+                  </p>
+                  {promotion.is_featured && (
+                    <Badge variant="default" className="mt-1">
+                      مميز
+                    </Badge>
+                  )}
+                </div>
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-[200px] truncate">
+                {promotion.description || "-"}
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                {promotion.promotion_type || "-"}
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                {promotion.start_date
+                  ? new Date(promotion.start_date).toLocaleDateString("ar-SA")
+                  : "-"}
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                {promotion.end_date
+                  ? new Date(promotion.end_date).toLocaleDateString("ar-SA")
+                  : "-"}
+              </td>
+              <td className="px-4 py-3">
+                {promotion.is_active ? (
+                  <Badge
+                    variant="default"
+                    className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                  >
+                    نشط
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">معطل</Badge>
+                )}
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                {promotion.budget
+                  ? Number(promotion.budget).toLocaleString("ar-SA") + " ر.س"
+                  : "-"}
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                {promotion.created_at
+                  ? new Date(promotion.created_at).toLocaleDateString("ar-SA")
+                  : "-"}
+              </td>
+              <td className="px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Link href={`/promotions/edit/${promotion.slug}`}>
+                    <Button variant="ghost" size="sm">
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>حذف العرض</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          هل أنت متأكد من حذف العرض "{promotion.name}"؟ هذا
+                          الإجراء لا يمكن التراجع عنه.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDeletePromotion(promotion.id)}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          حذف
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }

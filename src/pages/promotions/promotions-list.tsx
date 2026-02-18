@@ -166,46 +166,46 @@ export default function PromotionsList() {
 
   const updatePromotionMutation = useMutation({
     mutationFn: async (data: PromotionFormData) => {
-      const formData = new FormData();
-      formData.append('title', data.title);
-      formData.append('description', data.description);
-      formData.append('startDate', data.startDate.toISOString());
-      formData.append('endDate', data.endDate.toISOString());
-      formData.append('isActive', data.isActive.toString());
-
-      if (selectedImage) {
-        formData.append('image', selectedImage);
-      }
-
-      const response = await fetch(`/api/promotions/${editingPromotion.id}`, {
-        method: 'PUT',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('فشل في تحديث العرض');
-      }
-
-      return response.json();
+      const payload = {
+        name: data.name,
+        description: data.description,
+        slug: data.slug,
+        promotion_type: data.promotion_type,
+        start_date: data.start_date.toISOString().split("T")[0],
+        end_date: data.end_date.toISOString().split("T")[0],
+        is_active: data.is_active,
+        target_audience: data.target_audience,
+        budget: data.budget,
+      };
+  
+      console.log("Update Payload:", payload);
+  
+      return updateFlashSale(editingPromotion.id, payload);
     },
+  
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/promotions'] });
+      queryClient.invalidateQueries({ queryKey: ["/promotions"] });
       setIsDialogOpen(false);
       resetForm();
+  
       toast({
-        title: "تم التحديث",
-        description: "تم تحديث العرض بنجاح",
+        title: "تم تحديث العرض",
+        description: "تم حفظ التعديلات بنجاح",
       });
     },
-    onError: (error: Error) => {
+  
+    onError: (err: any) => {
       toast({
         title: "خطأ",
-        description: error.message || "فشل في تحديث العرض",
+        description:
+          err?.response?.data?.message ||
+          err?.message ||
+          "فشل في تحديث العرض",
         variant: "destructive",
       });
     },
   });
-
+  
   const deletePromotionMutation = useMutation({
     mutationFn: async (id: number) => {
       const response = await fetch(`/api/promotions/${id}`, {
@@ -266,18 +266,22 @@ export default function PromotionsList() {
 
   const handleEdit = (promotion: any) => {
     setEditingPromotion(promotion);
+  
     promotionForm.reset({
-      title: promotion.title,
+      name: promotion.name,
+      slug: promotion.slug,
       description: promotion.description,
-      startDate: new Date(promotion.startDate),
-      endDate: new Date(promotion.endDate),
-      isActive: promotion.isActive,
+      promotion_type: promotion.promotion_type,
+      start_date: new Date(promotion.start_date),
+      end_date: new Date(promotion.end_date),
+      is_active: promotion.is_active,
+      target_audience: promotion.target_audience,
+      budget: promotion.budget,
     });
-    if (promotion.imageUrl) {
-      setImagePreview(promotion.imageUrl);
-    }
+  
     setIsDialogOpen(true);
   };
+  
 
   const handleDelete = (id: number) => {
     if (confirm("هل أنت متأكد من حذف هذا العرض؟")) {
@@ -657,7 +661,7 @@ export default function PromotionsList() {
       ) : (
         <Card>
           <CardContent className="pt-6">
-            <PromotionsTable />
+          <PromotionsTable onEdit={handleEdit} />
           </CardContent>
         </Card>
       )}

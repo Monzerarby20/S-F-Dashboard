@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
@@ -24,20 +24,54 @@ import { ar } from "date-fns/locale";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
 import { createPromotion, getAllPromotions } from "../../services/promotion";
-
+import { createFlashSale, updateFlashSale, updateFlashSaleStatus, deleteFlashSale, getFlashSaleById, getFlashSalesByType, searchPromotions, getAllOffers } from "@/services/offers";
+import PromotionsTable from "./promotions-table";
+import { Switch } from "@/components/ui/switch";
 const promotionSchema = z.object({
   name: z.string().min(1, "اسم العرض مطلوب"),
-  slug: z.string().min(1, "الـ slug مطلوب"),
-  description: z.string().min(1, "الوصف مطلوب"),
-  promotion_type: z.string().min(1, "نوع العرض مطلوب"),
+  slug: z.string(),
+  promotion_type: z.enum([
+    "flash_sale",
+    "seasonal",
+    "clearance",
+    "bundle",
+    "loyalty",
+    "referral",
+  ]),
   start_date: z.date(),
   end_date: z.date(),
-  is_active: z.boolean().default(true),
-  is_featured: z.boolean().default(false),
-  target_audience: z.string().default("all"),
-  banner_image: z.string().url("رابط الصورة غير صحيح").optional(),
-  terms_conditions: z.string().optional(),
+  description: z.string(),
+  is_active: z.boolean(),
+  target_audience: z.enum(["all", "new_users", "vip", "returning"]),
+  budget: z.coerce.number().min(0, "الميزانية لازم تكون رقم موجب"),
+
 });
+const arabicToEnglishMap: Record<string, string> = {
+  ا: "a", أ: "a", إ: "e", آ: "a",
+  ب: "b", ت: "t", ث: "th",
+  ج: "g", ح: "h", خ: "kh",
+  د: "d", ذ: "z", ر: "r",
+  ز: "z", س: "s", ش: "sh",
+  ص: "s", ض: "d", ط: "t",
+  ظ: "z", ع: "a", غ: "gh",
+  ف: "f", ق: "q", ك: "k",
+  ل: "l", م: "m", ن: "n",
+  ه: "h", و: "w", ي: "y",
+  ة: "a", ى: "a", ؤ: "w", ئ: "e"
+};
+
+const generateSlug = (text: string) => {
+  return text
+    .split("")
+    .map(char => arabicToEnglishMap[char] || char)
+    .join("")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+};
+
 
 type PromotionFormData = z.infer<typeof promotionSchema>;
 
@@ -45,23 +79,27 @@ export default function PromotionsList() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<any>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
 
+
   // const { data: promotions = [], isLoading } = useQuery({
   //   queryKey: ['/promotions'],
   // });
 
-  const {data : promotions = [] , isLoading} = useQuery({
+  // const {data : promotions = [] , isLoading} = useQuery({
+  //   queryKey: ['/promotions'],
+  //   queryFn: getAllPromotions,
+  // });
+  const { data: promotions = [], isLoading } = useQuery({
     queryKey: ['/promotions'],
-    queryFn: getAllPromotions,
+    queryFn: getAllOffers,
   });
-
   console.log("Fetched promotions:", promotions);
-  console.log("Fetched promotions:", typeof(promotions));
+  console.log("Fetched promotions:", typeof (promotions));
 
 
 
@@ -82,99 +120,92 @@ export default function PromotionsList() {
     },
   });
 
+  useEffect(() => {
+    const name = promotionForm.watch("name");
+    if (name) {
+      promotionForm.setValue("slug", generateSlug(name));
+    }
+  }, [promotionForm.watch("name")]);
+
+
+  // Create Promotion Mutation
   const createPromotionMutation = useMutation({
     mutationFn: async (data: PromotionFormData) => {
       const payload = {
         name: data.name,
-        slug: data.slug,
         description: data.description,
+        slug: data.slug,
         promotion_type: data.promotion_type,
         start_date: data.start_date.toISOString().split("T")[0],
         end_date: data.end_date.toISOString().split("T")[0],
         is_active: data.is_active,
-        is_featured: data.is_featured,
         target_audience: data.target_audience,
-        banner_image: data.banner_image || "",
-        terms_conditions: data.terms_conditions || "",
+        budget: data.budget,
       };
-      
-      // if (selectedImage) {
-      //   payload.append('image', selectedImage);
-      // }
-
-      // const response = await fetch('/promotions', {
-      //   method: 'POST',
-      //   body: formData,
-      // });
-      const response = await createPromotion(payload);
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error || 'فشل في إنشاء العرض');
-      }
-      
-      return response.json();
+      console.log("Creation Request:",payload)
+      return createFlashSale(payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/promotions'] });
+      queryClient.invalidateQueries({ queryKey: ["/promotions"] });
       setIsDialogOpen(false);
-      resetForm();
+      promotionForm.reset();
       toast({
-        title: "تم الحفظ",
-        description: "تم إنشاء العرض بنجاح",
+        title: "تم إنشاء العرض",
+        description: "تم حفظ العرض بنجاح",
       });
     },
-    onError: (error: Error) => {
-      console.error('Error creating promotion:', error);
+    onError: (err: any) => {
       toast({
         title: "خطأ",
-        description: error.message || "فشل في إنشاء العرض",
+        description: err.message || "فشل في إنشاء العرض",
         variant: "destructive",
       });
     },
   });
+  
 
   const updatePromotionMutation = useMutation({
     mutationFn: async (data: PromotionFormData) => {
-      const formData = new FormData();
-      formData.append('title', data.title);
-      formData.append('description', data.description);
-      formData.append('startDate', data.startDate.toISOString());
-      formData.append('endDate', data.endDate.toISOString());
-      formData.append('isActive', data.isActive.toString());
-      
-      if (selectedImage) {
-        formData.append('image', selectedImage);
-      }
-
-      const response = await fetch(`/api/promotions/${editingPromotion.id}`, {
-        method: 'PUT',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        throw new Error('فشل في تحديث العرض');
-      }
-      
-      return response.json();
+      const payload = {
+        name: data.name,
+        description: data.description,
+        slug: data.slug,
+        promotion_type: data.promotion_type,
+        start_date: data.start_date.toISOString().split("T")[0],
+        end_date: data.end_date.toISOString().split("T")[0],
+        is_active: data.is_active,
+        target_audience: data.target_audience,
+        budget: data.budget,
+      };
+  
+      console.log("Update Payload:", payload);
+  
+      return updateFlashSale(editingPromotion.id, payload);
     },
+  
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/promotions'] });
+      queryClient.invalidateQueries({ queryKey: ["/promotions"] });
       setIsDialogOpen(false);
       resetForm();
+  
       toast({
-        title: "تم التحديث",
-        description: "تم تحديث العرض بنجاح",
+        title: "تم تحديث العرض",
+        description: "تم حفظ التعديلات بنجاح",
       });
     },
-    onError: (error: Error) => {
+  
+    onError: (err: any) => {
       toast({
         title: "خطأ",
-        description: error.message || "فشل في تحديث العرض",
+        description:
+          err?.response?.data?.message ||
+          err?.message ||
+          "فشل في تحديث العرض",
         variant: "destructive",
       });
     },
   });
-
+  
   const deletePromotionMutation = useMutation({
     mutationFn: async (id: number) => {
       const response = await fetch(`/api/promotions/${id}`, {
@@ -235,18 +266,22 @@ export default function PromotionsList() {
 
   const handleEdit = (promotion: any) => {
     setEditingPromotion(promotion);
+  
     promotionForm.reset({
-      title: promotion.title,
+      name: promotion.name,
+      slug: promotion.slug,
       description: promotion.description,
-      startDate: new Date(promotion.startDate),
-      endDate: new Date(promotion.endDate),
-      isActive: promotion.isActive,
+      promotion_type: promotion.promotion_type,
+      start_date: new Date(promotion.start_date),
+      end_date: new Date(promotion.end_date),
+      is_active: promotion.is_active,
+      target_audience: promotion.target_audience,
+      budget: promotion.budget,
     });
-    if (promotion.imageUrl) {
-      setImagePreview(promotion.imageUrl);
-    }
+  
     setIsDialogOpen(true);
   };
+  
 
   const handleDelete = (id: number) => {
     if (confirm("هل أنت متأكد من حذف هذا العرض؟")) {
@@ -334,7 +369,7 @@ export default function PromotionsList() {
                   {editingPromotion ? "تعديل العرض" : "إضافة عرض جديد"}
                 </DialogTitle>
               </DialogHeader>
-              
+
               <Form {...promotionForm}>
                 <form onSubmit={promotionForm.handleSubmit(handleSubmit)} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -351,31 +386,31 @@ export default function PromotionsList() {
                         </FormItem>
                       )}
                     />
-
                     <FormField
-                      control={promotionForm.control}
-                      name="is_active"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>حالة العرض</FormLabel>
-                          <Select
-                            value={field.value ? "true" : "false"}
-                            onValueChange={(value) => field.onChange(value === "true")}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="true">نشط</SelectItem>
-                              <SelectItem value="false">معطل</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+  control={promotionForm.control}
+  name="is_active"
+  render={({ field }) => (
+    <FormItem>
+      <FormLabel>حالة العرض</FormLabel>
+      <FormControl>
+        <div className="flex items-center gap-2 rounded-lg border p-4">
+          <Switch
+            checked={field.value}
+            className="data-[state=checked]:bg-primary"
+            onCheckedChange={field.onChange}
+          />
+          <span className="text-sm text-muted-foreground">
+            تفعيل أو إيقاف العرض
+          </span>
+        </div>
+      </FormControl>
+      <FormMessage />
+    </FormItem>
+  )}
+/>
+
+                    
+
                   </div>
 
                   <FormField
@@ -395,7 +430,86 @@ export default function PromotionsList() {
                       </FormItem>
                     )}
                   />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={promotionForm.control}
+                      name="slug"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Slug (Auto)</FormLabel>
+                          <FormControl>
+                            <Input {...field} readOnly className="bg-muted cursor-not-allowed" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={promotionForm.control}
+                      name="promotion_type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>نوع العرض</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="اختر نوع العرض" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="flash_sale">Flash Sale</SelectItem>
+                              <SelectItem value="seasonal">Seasonal</SelectItem>
+                              <SelectItem value="clearance">Clearance</SelectItem>
+                              <SelectItem value="bundle">Bundle</SelectItem>
+                              <SelectItem value="loyalty">Loyalty</SelectItem>
+                              <SelectItem value="referral">Referral</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={promotionForm.control}
+                      name="target_audience"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Target Audience</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="حدد الفئة المستهدفة" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="all">All Users</SelectItem>
+                              <SelectItem value="new_users">New Users</SelectItem>
+                              <SelectItem value="vip">VIP</SelectItem>
+                              <SelectItem value="returning">Returning Users</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={promotionForm.control}
+                      name="budget"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>الميزانية</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="100000" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={promotionForm.control}
@@ -519,8 +633,8 @@ export default function PromotionsList() {
                       {createPromotionMutation.isPending || updatePromotionMutation.isPending
                         ? "جاري الحفظ..."
                         : editingPromotion
-                        ? "تحديث العرض"
-                        : "إضافة العرض"}
+                          ? "تحديث العرض"
+                          : "إضافة العرض"}
                     </Button>
                   </div>
                 </form>
@@ -543,66 +657,13 @@ export default function PromotionsList() {
               إضافة أول عرض
             </Button>
           }
-          
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.isArray(promotions) && promotions.map((promotion: any) => (
-            <Card key={promotion.id} className="overflow-hidden">
-              {promotion.imageUrl && (
-                <div className="aspect-video relative">
-                  <img
-                    src={promotion.imageUrl}
-                    alt={promotion.title}
-                    className="object-cover w-full h-full"
-                  />
-                </div>
-              )}
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-lg line-clamp-2">
-                    {promotion.title}
-                  </CardTitle>
-                  {getStatusBadge(promotion)}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground line-clamp-3">
-                  {promotion.description}
-                </p>
-                
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>
-                    من: {format(new Date(promotion.startDate), "dd/MM/yyyy")}
-                  </span>
-                  <span>
-                    إلى: {format(new Date(promotion.endDate), "dd/MM/yyyy")}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center pt-4 mt-4 border-t">
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(promotion)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(promotion.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Card>
+          <CardContent className="pt-6">
+          <PromotionsTable onEdit={handleEdit} />
+          </CardContent>
+        </Card>
       )}
     </PageLayout>
   );

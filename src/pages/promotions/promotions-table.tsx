@@ -18,7 +18,8 @@ import { Link } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
 
-export default function PromotionsTable() {
+export default function PromotionsTable({ onEdit }: { onEdit: (promotion: any) => void }) {
+
   const { data: promotions = [], isLoading } = useQuery({
     queryKey: ["/promotions"],
     queryFn: getAllOffers,
@@ -142,11 +143,10 @@ export default function PromotionsTable() {
               </td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <Link href={`/promotions/edit/${promotion.slug}`}>
-                    <Button variant="ghost" size="sm">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  </Link>
+                  <Button size="icon" variant="outline" onClick={() => onEdit(promotion)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button

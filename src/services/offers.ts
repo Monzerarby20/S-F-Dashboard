@@ -63,24 +63,50 @@ export const getFlashSaleById = async (id: string) => {
     }
 }
 
-export const getFlashSalesByType = async (params: any) => {
-    try{
-        const response = await api.get(`/pricing/promotions/`, { params });
-        console.log("Flash sales fetched:", response.data);
-        return response.data;
-    }catch(error){
-        console.error("Error fetching flash sales:", error);
-        throw error;
-    }
-}
+// export const getFlashSalesByType = async (params: any) => {
+//     try{
+//         const response = await api.get(`/pricing/promotions/`, { params });
+//         console.log("Flash sales fetched:", response.data);
+//         return response.data;
+//     }catch(error){
+//         console.error("Error fetching flash sales:", error);
+//         throw error;
+//     }
+// }
 
-export const searchPromotions = async (params: any) => {
-    try{
-        const response = await api.get(`/pricing/promotions/search/`, { params });
-        console.log("Promotions searched:", response.data);
-        return response.data;
-    }catch(error){
-        console.error("Error searching promotions:", error);
-        throw error;
+// export const searchPromotions = async (params: any) => {
+//     try{
+//         const response = await api.get(`/pricing/promotions/search/`, { params });
+//         console.log("Promotions searched:", response.data);
+//         return response.data;
+//     }catch(error){
+//         console.error("Error searching promotions:", error);
+//         throw error;
+//     }
+// }
+// export const searchPromotions = async ({ q, page }: any) => {
+//     try {
+//       const res = await api.get(`/pricing/promotions/search/?q=${q}&page=${page}`);
+//       return res.data;
+//     } catch (err) {
+//       console.warn("Search endpoint not found, fallback to normal list");
+//       return { results: [], count: 0 };
+//     }
+//   };
+export const getFlashSalesByType = async (params: any) => {
+    try {
+      const response = await api.get(`/pricing/promotions/`, { params });
+      console.log("Flash sales fetched:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching flash sales:", error);
+      throw error;
     }
-}
+  };
+  
+  export const searchPromotions = async ({ q, page }: { q: string; page: number }) => {
+    const res = await api.get(`/pricing/promotions/`, { 
+      params: { search: q, page } 
+    });
+    return res.data;
+  };

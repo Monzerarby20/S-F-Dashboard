@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest } from "@/lib/queryClient";
+
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,16 +14,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Badge } from "@/components/ui/badge";
+
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Megaphone, Plus, Edit, Trash2, Eye, Upload, BarChart3 } from "lucide-react";
+import { CalendarIcon, Megaphone, Plus,X, Image , Edit, Trash2, Eye, Upload, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-import { createPromotion, getAllPromotions } from "../../services/promotion";
 import { createFlashSale, updateFlashSale, updateFlashSaleStatus, deleteFlashSale, getFlashSaleById, getFlashSalesByType, searchPromotions, getAllOffers } from "@/services/offers";
 import PromotionsTable from "./promotions-table";
 import { Switch } from "@/components/ui/switch";
@@ -44,6 +43,9 @@ const promotionSchema = z.object({
   is_active: z.boolean(),
   target_audience: z.enum(["all", "new_users", "vip", "returning"]),
   budget: z.coerce.number().min(0, "الميزانية لازم تكون رقم موجب"),
+  banner_image_url: z.string().url("Invalid image URL"),
+landing_page_url: z.string().url("Invalid landing page URL"),
+
 
 });
 const arabicToEnglishMap: Record<string, string> = {
@@ -82,22 +84,55 @@ export default function PromotionsList() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<any>(null);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>("");
+  // const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  // const [imagePreview, setImagePreview] = useState<string>("");
+  const [search, setSearch] = useState("");
 
+  const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const [type, setType] = useState<"all" | string>("all");
+  // Images state
+  const [images, setImages] = useState<Array<{
+    image_url: string;
+    is_primary: boolean;
+    alt_text: string;
+    image_type: string;
+  }>>([]);
+  // New image form state
+  const [newImageUrl, setNewImageUrl] = useState("");
+  const [newImageAlt, setNewImageAlt] = useState("");
+  const [newImageType, setNewImageType] = useState("product");
+  const [newImagePrimary, setNewImagePrimary] = useState(false);
 
-  // const { data: promotions = [], isLoading } = useQuery({
-  //   queryKey: ['/promotions'],
-  // });
+  // Get offers with filterations 
 
-  // const {data : promotions = [] , isLoading} = useQuery({
-  //   queryKey: ['/promotions'],
-  //   queryFn: getAllPromotions,
-  // });
-  const { data: promotions = [], isLoading } = useQuery({
-    queryKey: ['/promotions'],
-    queryFn: getAllOffers,
+  const { data, isLoading } = useQuery({
+    queryKey: ["/promotions", search, type, status, page],
+    queryFn: async () => {
+      const activeType = type === "all" || type === "" ? undefined : type;
+
+      if (search) {
+        return getFlashSalesByType({
+          search,
+          promotion_type: activeType,
+          is_active: status || undefined,
+          page,
+        });
+      }
+
+      return getFlashSalesByType({
+        ...(search ? { search } : {}),
+        promotion_type: activeType,
+        is_active: status || undefined,
+        page,
+      });
+    },
   });
+
+  const promotions = Array.isArray(data?.results) ? data.results : [];
+
+
+
   console.log("Fetched promotions:", promotions);
   console.log("Fetched promotions:", typeof (promotions));
 
@@ -132,18 +167,13 @@ export default function PromotionsList() {
   const createPromotionMutation = useMutation({
     mutationFn: async (data: PromotionFormData) => {
       const payload = {
-        name: data.name,
-        description: data.description,
-        slug: data.slug,
-        promotion_type: data.promotion_type,
+        ...data,
         start_date: data.start_date.toISOString().split("T")[0],
         end_date: data.end_date.toISOString().split("T")[0],
-        is_active: data.is_active,
-        target_audience: data.target_audience,
-        budget: data.budget,
       };
-      console.log("Creation Request:",payload)
+      console.log("Creation Request",payload)
       return createFlashSale(payload);
+
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/promotions"] });
@@ -162,7 +192,7 @@ export default function PromotionsList() {
       });
     },
   });
-  
+
 
   const updatePromotionMutation = useMutation({
     mutationFn: async (data: PromotionFormData) => {
@@ -176,24 +206,27 @@ export default function PromotionsList() {
         is_active: data.is_active,
         target_audience: data.target_audience,
         budget: data.budget,
+        banner_image_url: data.banner_image_url,
+        landing_page_url: data.landing_page_url,
+
       };
-  
+
       console.log("Update Payload:", payload);
-  
+
       return updateFlashSale(editingPromotion.id, payload);
     },
-  
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/promotions"] });
       setIsDialogOpen(false);
       resetForm();
-  
+
       toast({
         title: "تم تحديث العرض",
         description: "تم حفظ التعديلات بنجاح",
       });
     },
-  
+
     onError: (err: any) => {
       toast({
         title: "خطأ",
@@ -205,68 +238,44 @@ export default function PromotionsList() {
       });
     },
   });
-  
-  const deletePromotionMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await fetch(`/api/promotions/${id}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) {
-        throw new Error('فشل في حذف العرض');
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/promotions'] });
-      toast({
-        title: "تم الحذف",
-        description: "تم حذف العرض بنجاح",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "خطأ",
-        description: "فشل في حذف العرض",
-        variant: "destructive",
-      });
-    },
-  });
 
-  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // التحقق من نوع الملف
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "نوع ملف غير صحيح",
-          description: "يرجى اختيار صورة صالحة",
-          variant: "destructive",
-        });
-        return;
-      }
 
-      // التحقق من حجم الملف (5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "حجم الملف كبير",
-          description: "يجب أن يكون حجم الصورة أقل من 5 ميجابايت",
-          variant: "destructive",
-        });
-        return;
-      }
 
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  // const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = event.target.files?.[0];
+  //   if (file) {
+  //     // التحقق من نوع الملف
+  //     if (!file.type.startsWith('image/')) {
+  //       toast({
+  //         title: "نوع ملف غير صحيح",
+  //         description: "يرجى اختيار صورة صالحة",
+  //         variant: "destructive",
+  //       });
+  //       return;
+  //     }
+
+  //     // التحقق من حجم الملف (5MB)
+  //     if (file.size > 5 * 1024 * 1024) {
+  //       toast({
+  //         title: "حجم الملف كبير",
+  //         description: "يجب أن يكون حجم الصورة أقل من 5 ميجابايت",
+  //         variant: "destructive",
+  //       });
+  //       return;
+  //     }
+
+  //     setSelectedImage(file);
+  //     const reader = new FileReader();
+  //     reader.onload = () => {
+  //       setImagePreview(reader.result as string);
+  //     };
+  //     reader.readAsDataURL(file);
+  //   }
+  // };
 
   const handleEdit = (promotion: any) => {
     setEditingPromotion(promotion);
-  
+
     promotionForm.reset({
       name: promotion.name,
       slug: promotion.slug,
@@ -277,34 +286,41 @@ export default function PromotionsList() {
       is_active: promotion.is_active,
       target_audience: promotion.target_audience,
       budget: promotion.budget,
+      banner_image_url: promotion.banner_image_url,
+      landing_page_url: promotion.landing_page_url,
+
     });
-  
+
     setIsDialogOpen(true);
   };
-  
 
-  const handleDelete = (id: number) => {
-    if (confirm("هل أنت متأكد من حذف هذا العرض؟")) {
-      deletePromotionMutation.mutate(id);
-    }
-  };
+
+  const bannerUrl = promotionForm.watch("banner_image_url");
+  const landingUrl = promotionForm.watch("landing_page_url");
+  
 
   const resetForm = () => {
     setEditingPromotion(null);
-    setSelectedImage(null);
-    setImagePreview("");
+    // setSelectedImage(null);
+    // setImagePreview("");
     promotionForm.reset({
-      title: "",
+      name: "",
+      slug: "",
       description: "",
-      startDate: new Date(),
-      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      isActive: true,
+      promotion_type: "flash_sale",
+      start_date: new Date(),
+      end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      is_active: true,
+      target_audience: "all",
+      budget: 0,
+      banner_image_url: "",
+      landing_page_url: "",
     });
   };
 
   const handleSubmit = (data: PromotionFormData) => {
     // التحقق من صحة التواريخ
-    if (data.endDate <= data.startDate) {
+    if (data.end_date <= data.start_date) {
       toast({
         title: "خطأ في التواريخ",
         description: "تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية",
@@ -320,21 +336,23 @@ export default function PromotionsList() {
     }
   };
 
-  const getStatusBadge = (promotion: any) => {
-    const now = new Date();
-    const startDate = new Date(promotion.startDate);
-    const endDate = new Date(promotion.endDate);
+  // const getStatusBadge = (promotion: any) => {
+  //   const now = new Date();
+  //   const startDate = new Date(promotion.startDate);
+  //   const endDate = new Date(promotion.endDate);
 
-    if (!promotion.isActive) {
-      return <Badge variant="secondary">معطل</Badge>;
-    } else if (now < startDate) {
-      return <Badge variant="outline">قادم</Badge>;
-    } else if (now > endDate) {
-      return <Badge variant="destructive">منتهي</Badge>;
-    } else {
-      return <Badge variant="default">نشط</Badge>;
-    }
-  };
+  //   if (!promotion.isActive) {
+  //     return <Badge variant="secondary">معطل</Badge>;
+  //   } else if (now < startDate) {
+  //     return <Badge variant="outline">قادم</Badge>;
+  //   } else if (now > endDate) {
+  //     return <Badge variant="destructive">منتهي</Badge>;
+  //   } else {
+  //     return <Badge variant="default">نشط</Badge>;
+  //   }
+  // };
+  const isEmpty = promotions.length === 0 && !search && type === "all" && !status;
+
 
   if (!user) {
     return <Loading />;
@@ -387,29 +405,29 @@ export default function PromotionsList() {
                       )}
                     />
                     <FormField
-  control={promotionForm.control}
-  name="is_active"
-  render={({ field }) => (
-    <FormItem>
-      <FormLabel>حالة العرض</FormLabel>
-      <FormControl>
-        <div className="flex items-center gap-2 rounded-lg border p-4">
-          <Switch
-            checked={field.value}
-            className="data-[state=checked]:bg-primary"
-            onCheckedChange={field.onChange}
-          />
-          <span className="text-sm text-muted-foreground">
-            تفعيل أو إيقاف العرض
-          </span>
-        </div>
-      </FormControl>
-      <FormMessage />
-    </FormItem>
-  )}
-/>
+                      control={promotionForm.control}
+                      name="is_active"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>حالة العرض</FormLabel>
+                          <FormControl>
+                            <div className="flex items-center gap-2 rounded-lg border p-4">
+                              <Switch
+                                checked={field.value}
+                                className="data-[state=checked]:bg-primary"
+                                onCheckedChange={field.onChange}
+                              />
+                              <span className="text-sm text-muted-foreground">
+                                تفعيل أو إيقاف العرض
+                              </span>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                    
+
 
                   </div>
 
@@ -443,7 +461,7 @@ export default function PromotionsList() {
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                      />
                     <FormField
                       control={promotionForm.control}
                       name="promotion_type"
@@ -468,7 +486,7 @@ export default function PromotionsList() {
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                      />
 
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -494,7 +512,7 @@ export default function PromotionsList() {
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                      />
                     <FormField
                       control={promotionForm.control}
                       name="budget"
@@ -507,7 +525,7 @@ export default function PromotionsList() {
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                      />
 
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -523,7 +541,7 @@ export default function PromotionsList() {
                                 <Button
                                   variant="outline"
                                   className="w-full pl-3 text-left font-normal"
-                                >
+                                  >
                                   {field.value ? (
                                     format(field.value, "PPP", { locale: ar })
                                   ) : (
@@ -540,7 +558,7 @@ export default function PromotionsList() {
                                 onSelect={field.onChange}
                                 disabled={(date) => date < new Date()}
                                 initialFocus
-                              />
+                                />
                             </PopoverContent>
                           </Popover>
                           <FormMessage />
@@ -560,7 +578,7 @@ export default function PromotionsList() {
                                 <Button
                                   variant="outline"
                                   className="w-full pl-3 text-left font-normal"
-                                >
+                                  >
                                   {field.value ? (
                                     format(field.value, "PPP", { locale: ar })
                                   ) : (
@@ -577,7 +595,7 @@ export default function PromotionsList() {
                                 onSelect={field.onChange}
                                 disabled={(date) => date < new Date()}
                                 initialFocus
-                              />
+                                />
                             </PopoverContent>
                           </Popover>
                           <FormMessage />
@@ -585,38 +603,51 @@ export default function PromotionsList() {
                       )}
                     />
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <FormField
+    control={promotionForm.control}
+    name="banner_image_url"
+    render={({ field }) => (
+      <FormItem>
+        <FormLabel>رابط صورة البانر</FormLabel>
+        <FormControl>
+          <Input placeholder="https://..." {...field} />
+        </FormControl>
+        <FormMessage />
+      </FormItem>
+    )}
+    />
+    
 
-                  <div className="space-y-4">
-                    <label className="text-sm font-medium">صورة العرض (اختيارية)</label>
-                    <div className="flex items-center gap-4">
-                      <Button type="button" variant="outline" asChild>
-                        <label className="cursor-pointer">
-                          <Upload className="h-4 w-4 mr-2" />
-                          اختيار صورة
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageChange}
-                            className="hidden"
-                          />
-                        </label>
-                      </Button>
-                      {selectedImage && (
-                        <span className="text-sm text-muted-foreground">
-                          {selectedImage.name}
-                        </span>
-                      )}
-                    </div>
-                    {imagePreview && (
-                      <div className="mt-2">
-                        <img
-                          src={imagePreview}
-                          alt="معاينة الصورة"
-                          className="max-w-full h-32 object-cover rounded-lg border"
-                        />
-                      </div>
-                    )}
-                  </div>
+{bannerUrl && (
+  <img
+  src={bannerUrl}
+  className="h-32 rounded-lg border object-cover"
+    alt="Preview"
+  />
+)}
+  <FormField
+    control={promotionForm.control}
+    name="landing_page_url"
+    render={({ field }) => (
+      <FormItem>
+        <FormLabel>رابط صفحة الهبوط</FormLabel>
+        <FormControl>
+          <Input placeholder="https://..." {...field} />
+        </FormControl>
+        <FormMessage />
+      </FormItem>
+    )}
+  />
+  {landingUrl && (
+  <img
+  src={landingUrl}
+  className="h-32 rounded-lg border object-cover"
+    alt="Preview"
+  />
+)}
+</div>
+
 
                   <div className="flex justify-end gap-3">
                     <Button
@@ -643,25 +674,89 @@ export default function PromotionsList() {
           </Dialog>
         }
       />
+      {isEmpty ? (
 
-      {Array.isArray(promotions) && promotions.length === 0 ? (
         <EmptyState
           icon={Megaphone}
           title="لا توجد عروض"
           description="لم يتم إنشاء أي عروض ترويجية بعد"
           action={
-            <Button onClick={() => {
-              resetForm();
-              setIsDialogOpen(true);
-            }}>
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
               إضافة أول عرض
             </Button>
           }
         />
       ) : (
+
         <Card>
           <CardContent className="pt-6">
-          <PromotionsTable onEdit={handleEdit} />
+            {/* Filters */}
+            <div className="flex flex-wrap gap-4 mb-6">
+              <Input
+                placeholder="ابحث باسم العرض..."
+                autoFocus
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="w-64"
+              />
+              <Select
+                value={type}
+                onValueChange={(v) => { setType(v); setPage(1); }}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">الكل</SelectItem>
+                  <SelectItem value="flash_sale">Flash Sale</SelectItem>
+                  <SelectItem value="seasonal">Seasonal</SelectItem>
+                  <SelectItem value="clearance">Clearance</SelectItem>
+                  <SelectItem value="bundle">Bundle</SelectItem>
+                  <SelectItem value="loyalty">Loyalty</SelectItem>
+                  <SelectItem value="referral">Referral</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearch("");
+                  setType("all");
+                  setStatus("");
+                  setPage(1);
+                }}
+              >
+                مسح الفلاتر
+              </Button>
+            </div>
+
+            {/* لو الفلتر/السيرش مش لاقي نتايج */}
+            {promotions.length === 0 && !isLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                <Megaphone className="h-10 w-10 mb-3 opacity-40" />
+                <p className="text-sm">لا توجد نتائج مطابقة للبحث</p>
+                <Button
+                  variant="link"
+                  className="mt-2 text-sm"
+                  onClick={() => {
+                    setSearch("");
+                    setType("all");
+                    setStatus("");
+                    setPage(1);
+                  }}
+                >
+                  مسح الفلاتر والعودة لكل العروض
+                </Button>
+              </div>
+            ) : (
+              <PromotionsTable
+                promotions={promotions}
+                isLoading={isLoading}
+                onEdit={handleEdit}
+              />
+            )}
           </CardContent>
         </Card>
       )}

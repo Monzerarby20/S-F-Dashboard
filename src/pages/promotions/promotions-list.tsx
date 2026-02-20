@@ -17,13 +17,12 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Megaphone, Plus, Edit, Trash2, Eye, Upload, BarChart3 } from "lucide-react";
+import { CalendarIcon, Megaphone, Plus,X, Image , Edit, Trash2, Eye, Upload, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
-
 import { createFlashSale, updateFlashSale, updateFlashSaleStatus, deleteFlashSale, getFlashSaleById, getFlashSalesByType, searchPromotions, getAllOffers } from "@/services/offers";
 import PromotionsTable from "./promotions-table";
 import { Switch } from "@/components/ui/switch";
@@ -44,6 +43,9 @@ const promotionSchema = z.object({
   is_active: z.boolean(),
   target_audience: z.enum(["all", "new_users", "vip", "returning"]),
   budget: z.coerce.number().min(0, "الميزانية لازم تكون رقم موجب"),
+  banner_image_url: z.string().url("Invalid image URL"),
+landing_page_url: z.string().url("Invalid landing page URL"),
+
 
 });
 const arabicToEnglishMap: Record<string, string> = {
@@ -82,17 +84,28 @@ export default function PromotionsList() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<any>(null);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>("");
+  // const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  // const [imagePreview, setImagePreview] = useState<string>("");
   const [search, setSearch] = useState("");
- 
+
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [type, setType] = useState<"all" | string>("all");
-
+  // Images state
+  const [images, setImages] = useState<Array<{
+    image_url: string;
+    is_primary: boolean;
+    alt_text: string;
+    image_type: string;
+  }>>([]);
+  // New image form state
+  const [newImageUrl, setNewImageUrl] = useState("");
+  const [newImageAlt, setNewImageAlt] = useState("");
+  const [newImageType, setNewImageType] = useState("product");
+  const [newImagePrimary, setNewImagePrimary] = useState(false);
 
   // Get offers with filterations 
-  
+
   const { data, isLoading } = useQuery({
     queryKey: ["/promotions", search, type, status, page],
     queryFn: async () => {
@@ -100,7 +113,7 @@ export default function PromotionsList() {
 
       if (search) {
         return getFlashSalesByType({
-          search,           
+          search,
           promotion_type: activeType,
           is_active: status || undefined,
           page,
@@ -154,18 +167,13 @@ export default function PromotionsList() {
   const createPromotionMutation = useMutation({
     mutationFn: async (data: PromotionFormData) => {
       const payload = {
-        name: data.name,
-        description: data.description,
-        slug: data.slug,
-        promotion_type: data.promotion_type,
+        ...data,
         start_date: data.start_date.toISOString().split("T")[0],
         end_date: data.end_date.toISOString().split("T")[0],
-        is_active: data.is_active,
-        target_audience: data.target_audience,
-        budget: data.budget,
       };
-      console.log("Creation Request:", payload)
+      console.log("Creation Request",payload)
       return createFlashSale(payload);
+
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/promotions"] });
@@ -198,6 +206,9 @@ export default function PromotionsList() {
         is_active: data.is_active,
         target_audience: data.target_audience,
         budget: data.budget,
+        banner_image_url: data.banner_image_url,
+        landing_page_url: data.landing_page_url,
+
       };
 
       console.log("Update Payload:", payload);
@@ -230,37 +241,37 @@ export default function PromotionsList() {
 
 
 
-  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // التحقق من نوع الملف
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "نوع ملف غير صحيح",
-          description: "يرجى اختيار صورة صالحة",
-          variant: "destructive",
-        });
-        return;
-      }
+  // const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = event.target.files?.[0];
+  //   if (file) {
+  //     // التحقق من نوع الملف
+  //     if (!file.type.startsWith('image/')) {
+  //       toast({
+  //         title: "نوع ملف غير صحيح",
+  //         description: "يرجى اختيار صورة صالحة",
+  //         variant: "destructive",
+  //       });
+  //       return;
+  //     }
 
-      // التحقق من حجم الملف (5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "حجم الملف كبير",
-          description: "يجب أن يكون حجم الصورة أقل من 5 ميجابايت",
-          variant: "destructive",
-        });
-        return;
-      }
+  //     // التحقق من حجم الملف (5MB)
+  //     if (file.size > 5 * 1024 * 1024) {
+  //       toast({
+  //         title: "حجم الملف كبير",
+  //         description: "يجب أن يكون حجم الصورة أقل من 5 ميجابايت",
+  //         variant: "destructive",
+  //       });
+  //       return;
+  //     }
 
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  //     setSelectedImage(file);
+  //     const reader = new FileReader();
+  //     reader.onload = () => {
+  //       setImagePreview(reader.result as string);
+  //     };
+  //     reader.readAsDataURL(file);
+  //   }
+  // };
 
   const handleEdit = (promotion: any) => {
     setEditingPromotion(promotion);
@@ -275,18 +286,23 @@ export default function PromotionsList() {
       is_active: promotion.is_active,
       target_audience: promotion.target_audience,
       budget: promotion.budget,
+      banner_image_url: promotion.banner_image_url,
+      landing_page_url: promotion.landing_page_url,
+
     });
 
     setIsDialogOpen(true);
   };
 
 
-
+  const bannerUrl = promotionForm.watch("banner_image_url");
+  const landingUrl = promotionForm.watch("landing_page_url");
+  
 
   const resetForm = () => {
     setEditingPromotion(null);
-    setSelectedImage(null);
-    setImagePreview("");
+    // setSelectedImage(null);
+    // setImagePreview("");
     promotionForm.reset({
       name: "",
       slug: "",
@@ -297,6 +313,8 @@ export default function PromotionsList() {
       is_active: true,
       target_audience: "all",
       budget: 0,
+      banner_image_url: "",
+      landing_page_url: "",
     });
   };
 
@@ -443,7 +461,7 @@ export default function PromotionsList() {
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                      />
                     <FormField
                       control={promotionForm.control}
                       name="promotion_type"
@@ -468,7 +486,7 @@ export default function PromotionsList() {
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                      />
 
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -494,7 +512,7 @@ export default function PromotionsList() {
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                      />
                     <FormField
                       control={promotionForm.control}
                       name="budget"
@@ -507,7 +525,7 @@ export default function PromotionsList() {
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                      />
 
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -523,7 +541,7 @@ export default function PromotionsList() {
                                 <Button
                                   variant="outline"
                                   className="w-full pl-3 text-left font-normal"
-                                >
+                                  >
                                   {field.value ? (
                                     format(field.value, "PPP", { locale: ar })
                                   ) : (
@@ -540,7 +558,7 @@ export default function PromotionsList() {
                                 onSelect={field.onChange}
                                 disabled={(date) => date < new Date()}
                                 initialFocus
-                              />
+                                />
                             </PopoverContent>
                           </Popover>
                           <FormMessage />
@@ -560,7 +578,7 @@ export default function PromotionsList() {
                                 <Button
                                   variant="outline"
                                   className="w-full pl-3 text-left font-normal"
-                                >
+                                  >
                                   {field.value ? (
                                     format(field.value, "PPP", { locale: ar })
                                   ) : (
@@ -577,7 +595,7 @@ export default function PromotionsList() {
                                 onSelect={field.onChange}
                                 disabled={(date) => date < new Date()}
                                 initialFocus
-                              />
+                                />
                             </PopoverContent>
                           </Popover>
                           <FormMessage />
@@ -585,38 +603,51 @@ export default function PromotionsList() {
                       )}
                     />
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <FormField
+    control={promotionForm.control}
+    name="banner_image_url"
+    render={({ field }) => (
+      <FormItem>
+        <FormLabel>رابط صورة البانر</FormLabel>
+        <FormControl>
+          <Input placeholder="https://..." {...field} />
+        </FormControl>
+        <FormMessage />
+      </FormItem>
+    )}
+    />
+    
 
-                  <div className="space-y-4">
-                    <label className="text-sm font-medium">صورة العرض (اختيارية)</label>
-                    <div className="flex items-center gap-4">
-                      <Button type="button" variant="outline" asChild>
-                        <label className="cursor-pointer">
-                          <Upload className="h-4 w-4 mr-2" />
-                          اختيار صورة
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageChange}
-                            className="hidden"
-                          />
-                        </label>
-                      </Button>
-                      {selectedImage && (
-                        <span className="text-sm text-muted-foreground">
-                          {selectedImage.name}
-                        </span>
-                      )}
-                    </div>
-                    {imagePreview && (
-                      <div className="mt-2">
-                        <img
-                          src={imagePreview}
-                          alt="معاينة الصورة"
-                          className="max-w-full h-32 object-cover rounded-lg border"
-                        />
-                      </div>
-                    )}
-                  </div>
+{bannerUrl && (
+  <img
+  src={bannerUrl}
+  className="h-32 rounded-lg border object-cover"
+    alt="Preview"
+  />
+)}
+  <FormField
+    control={promotionForm.control}
+    name="landing_page_url"
+    render={({ field }) => (
+      <FormItem>
+        <FormLabel>رابط صفحة الهبوط</FormLabel>
+        <FormControl>
+          <Input placeholder="https://..." {...field} />
+        </FormControl>
+        <FormMessage />
+      </FormItem>
+    )}
+  />
+  {landingUrl && (
+  <img
+  src={landingUrl}
+  className="h-32 rounded-lg border object-cover"
+    alt="Preview"
+  />
+)}
+</div>
+
 
                   <div className="flex justify-end gap-3">
                     <Button
@@ -644,7 +675,7 @@ export default function PromotionsList() {
         }
       />
       {isEmpty ? (
-        
+
         <EmptyState
           icon={Megaphone}
           title="لا توجد عروض"
@@ -656,7 +687,7 @@ export default function PromotionsList() {
           }
         />
       ) : (
-        
+
         <Card>
           <CardContent className="pt-6">
             {/* Filters */}

@@ -46,6 +46,12 @@ export default function PromotionsTable({ promotions, isLoading, onEdit }: Promo
           <tr>
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">الاسم</th>
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">الوصف</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              صورة البانر
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              صورة صفحة العرض
+            </th>
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">نوع العرض</th>
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">تاريخ البداية</th>
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">تاريخ النهاية</th>
@@ -67,6 +73,31 @@ export default function PromotionsTable({ promotions, isLoading, onEdit }: Promo
               <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-[200px] truncate">
                 {promotion.description || "-"}
               </td>
+              <td className="px-4 py-3">
+  {promotion.banner_image_url ? (
+    <img
+      src={promotion.banner_image_url}
+      alt="banner"
+      className="w-14 h-10 object-cover rounded border"
+    />
+  ) : (
+    "-"
+  )}
+</td>
+
+<td className="px-4 py-3">
+  {promotion.landing_page_url ? (
+    <img
+      src={promotion.landing_page_url      }
+      alt="page"
+      className="w-14 h-10 object-cover rounded border"
+    />
+  ) : (
+    "-"
+  )}
+</td>
+
+              
               <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
                 {promotion.promotion_type || "-"}
               </td>

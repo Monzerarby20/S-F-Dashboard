@@ -13,7 +13,7 @@ import { ArrowRight, Save, Plus, X, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Loading from "@/components/common/loading";
 import { getAllStores, getStoreBySlug } from "@/services/stores";
-import { getCategories, getStores, getProductBySlug , updateProduct, updateInventory} from "@/services/products";
+import { getCategories, getStores, getProductBySlug , updateProduct, updateInventory, getInventory} from "@/services/products";
 
 export default function ProductFormEdit() {
   const { user } = useAuth();
@@ -91,7 +91,7 @@ export default function ProductFormEdit() {
         }
       }, [productData]);
       
-  // Selected store state (Admin can change it, regular user uses their store)
+     
   const [selectedStore, setSelectedStore] = useState<string>("");
   
   console.log('👤 Is Admin:', isAdmin);
@@ -132,48 +132,6 @@ export default function ProductFormEdit() {
     queryFn: () => getCategories(selectedStore),
     enabled: !!user && !!selectedStore,
   });
-  // useEffect(() => {
-  //   if (!stores.length) return;
-  
-  //   const savedStoreSlug = localStorage.getItem("userSlug");
-  
-  //   // لو المستخدم Admin → بلاش نختارله حاجة
-  //   if (isAdmin) return;
-  
-  //   // لو أصلا اخترنا متجر قبل كده → بلاش نغيره
-  //   if (selectedStore) return;
-  
-  //   if (savedStoreSlug) {
-  //     const matchedStore = stores.find(
-  //       (store: any) => store.slug === savedStoreSlug
-  //     );
-  
-  //     if (matchedStore) {
-  //       setSelectedStore(matchedStore.id.toString());
-  //       console.log("🎯 Auto-selected store:", matchedStore);
-  //     }
-  //   }
-  // }, [stores, selectedStore, isAdmin]);
-  // useEffect(() => {
-  //   if (!stores.length) return;
-  //   if (isAdmin) return;
-  //   if (selectedStore) return;
-  
-  //   const savedStoreSlug = localStorage.getItem("store_slug");
-  
-  //   if (savedStoreSlug) {
-  //     const matchedStore = stores.find((s: any) => s.slug === savedStoreSlug);
-  //     if (matchedStore) {
-  //       setSelectedStore(matchedStore.id.toString());
-  //       return;
-  //     }
-  //   }
-  
-  //   // fallback
-  //   if (userStoreId) {
-  //     setSelectedStore(userStoreId.toString());
-  //   }
-  // }, [stores, selectedStore, isAdmin, userStoreId]);
   
   
   const categoriesLoading = allCategoriesLoading || storeCategoriesLoading;
@@ -221,6 +179,7 @@ export default function ProductFormEdit() {
     // sku: "",
     name_en: "",
     category: "",
+    product: 0,
     price: "",
     description: "",
     short_description: "",
@@ -237,12 +196,15 @@ export default function ProductFormEdit() {
     expiry_date: "",
     is_featured: false,
     is_active: true,
+    branch:0,
+    branch_name:"",
     // Inventory fields
     quantity_on_hand: "",
     reorder_level: "",
     max_stock_level: "",
     cost_per_unit: "",
     location_in_store: "",
+    store:0
   });
 
 const updateProductMutation = useMutation({
@@ -275,8 +237,8 @@ const updateProductMutation = useMutation({
     }
   });
   const updateInventoryMutation = useMutation({
-    mutationFn: async ({ product_id, data }: { product_id: Number; data: any }) => {
-      return await updateInventory(product_id, data);
+    mutationFn: async ({ Inventory_id, data }: { Inventory_id: Number; data: any }) => {
+      return await updateInventory(Inventory_id, data);
     },
   
     onSuccess: () => {
@@ -325,20 +287,22 @@ const updateProductMutation = useMutation({
     
   };
 
-  const handleSubmitInventory = (e: React.FormEvent) => {
+  const handleSubmitInventory =async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    const inventoryres=await getInventory({product:productId.toString()})
+    const inventoryRcord=inventoryres?.results[0]
   const finalData = {
-  
+    product_name:productData?.name||"",
     quantity_on_hand: Number(formData.quantity_on_hand),
-    store: Number(selectedStore) || userStoreId, // 👈 لازم تتبعت
-    product: productId,  
+    product: productId,
+    store: Number(selectedStore) || Number(userStoreId),
     reorder_level: Number(formData.reorder_level),
     max_stock_level: Number(formData.max_stock_level),
-    cost_per_unit: Number(formData.cost_per_unit)
+    cost_per_unit: Number(formData.cost_per_unit),
+    location_in_store: formData.location_in_store,
   };
   console.log("Data That send to updated product",finalData)
-  updateInventoryMutation.mutate({ product_id: productId, data: finalData });
+  updateInventoryMutation.mutate({ Inventory_id: inventoryRcord.id, data: finalData });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -844,6 +808,8 @@ const updateProductMutation = useMutation({
                         placeholder="0"
                         />
                     </div>
+
+                   
 
                     <div>
                       <label className="block text-sm font-medium mb-2">حد إعادة الطلب</label>

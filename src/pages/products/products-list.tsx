@@ -67,8 +67,6 @@ export default function ProductsList() {
   });
   console.log("Store Id ", storeId)
   console.log("Is owner", isOwner)
-  
-  
 
   const { data: inventoryData } = useQuery({
     queryKey: ['inventory', stockStatusFilter],

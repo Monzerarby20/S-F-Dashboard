@@ -294,8 +294,8 @@ const updateProductMutation = useMutation({
   const finalData = {
     product_name:productData?.name||"",
     quantity_on_hand: Number(formData.quantity_on_hand),
-    product: productId,
-    store: Number(selectedStore) || Number(userStoreId),
+    store: Number(selectedStore) || userStoreId, 
+    product: productId,  
     reorder_level: Number(formData.reorder_level),
     max_stock_level: Number(formData.max_stock_level),
     cost_per_unit: Number(formData.cost_per_unit),
@@ -789,7 +789,7 @@ const updateProductMutation = useMutation({
               </div>
 
               </form>
-              {/* Inventory */}
+              {/* Inventory المخزون */}
             <form onSubmit={handleSubmitInventory}>
               <Card>
                 <CardHeader>

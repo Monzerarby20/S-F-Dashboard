@@ -164,6 +164,7 @@ export default function OrdersList() {
             <Loading />
           ) : !filteredOrders?.length ? (
             <EmptyState
+              icon={ShoppingCart}
               title="لا توجد طلبات"
               description="لم يتم العثور على أي طلبات تطابق معايير البحث"
             />

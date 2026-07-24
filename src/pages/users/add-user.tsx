@@ -77,7 +77,7 @@ const addUserSchema = z
     last_name: z.string().min(2, "الاسم الأخير مطلوب"),
     email: z.string().email("البريد الإلكتروني غير صحيح"),
     phone: z.string().min(10, "رقم الهاتف مطلوب"),
-    job_title: z.string().min(2, "المسمى الوظيفي مطلوب"),
+    
     role: z.string().min(1, "يجب اختيار دور"),
     store_id: z.number().optional(),
     branch_id: z.number().optional(),
@@ -152,7 +152,7 @@ export default function AddUserPage() {
       last_name: "",
       email: "",
       phone: "",
-      job_title: "",
+      
       password: "",
       confirm_password: "",
       gender: "male",
@@ -293,7 +293,7 @@ export default function AddUserPage() {
       console.error("Add user error:", error);
       toast({
         title: "خطأ",
-        description: "حدث خطأ أثناء إضافة المستخدم",
+        description: "حدث خطأ أثناء إضافة المستخدم" + String(error?.message || error),
         variant: "destructive",
       });
     },
@@ -310,7 +310,7 @@ export default function AddUserPage() {
       confirm_password: data.confirm_password,
       date_of_birth: data.date_of_birth,
       role: data.role,
-      job_title: data.job_title,
+      
       is_active: !!data.is_active,
       ...(data.store_id && { store_id: data.store_id }),
       ...(data.branch_id && { branch_id: data.branch_id }),
@@ -321,10 +321,7 @@ export default function AddUserPage() {
 
   };
 
-  // const handlePermissionToggle = (permissionId: number, checked: boolean) => {
-  //   if (checked) setSelectedPermissions((p) => [...p, permissionId]);
-  //   else setSelectedPermissions((p) => p.filter((id) => id !== permissionId));
-  // };
+ 
 
   if (authLoading  || loadingStores) {
     return <Loading />;
@@ -336,12 +333,7 @@ export default function AddUserPage() {
     return null;
   }
 
-  // Group permissions by module
-  // const permissionsByModule = permissions.reduce((acc: any, permission) => {
-  //   if (!acc[permission.module]) acc[permission.module] = [];
-  //   acc[permission.module].push(permission);
-  //   return acc;
-  // }, {});
+  
 
   return (
     <PageLayout maxWidth="2xl">
@@ -415,19 +407,7 @@ export default function AddUserPage() {
                   )}
                 />
                 {/* Job Title */}
-                <FormField
-                  control={form.control}
-                  name="job_title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>المسمى الوظيفي *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="مثل: Cashier - Downtown" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                
 
                 {/* Store Select */}
                 <FormField

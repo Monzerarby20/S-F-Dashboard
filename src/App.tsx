@@ -23,6 +23,10 @@ import ReturnsPage from "./pages/returns/returns-page";
 import UsersList from "./pages/users/users-list";
 import AddUser from "./pages/users/add-user";
 import EditUser from "./pages/users/edit-user";
+import CouriersList from "./pages/couriers/CouriersList";
+import AddCourier from "./pages/couriers/AddCourirer";
+import EditCourier from "./pages/couriers/EditCourier";
+import CourierDetails from "./pages/couriers/CourierDetails";
 import GuestCustomers from "./pages/customers/guest-customers";
 import CustomersListPage from "./pages/customers/customers-list";
 import ReportsDashboard from "./pages/reports/reports-dashboard";
@@ -63,7 +67,10 @@ function Router() {
           <Route path="/users" component={UsersList} />
           <Route path="/users/add" component={AddUser} />
           <Route path="/users/edit/:id" component={EditUser} />
-          
+          <Route path="/couriers" component={CouriersList} />
+          <Route path="/couriers/add" component={AddCourier} />
+          <Route path="/couriers/edit/:id" component={EditCourier} />
+          <Route path="/couriers/:id" component={CourierDetails} />
           <Route path="/promotions" component={PromotionsList} />
           <Route path="/stories" component={StoriesList} />
           <Route path="/returns" component={ReturnsPage} />
@@ -77,6 +84,7 @@ function Router() {
           <Route path="/profile" component={ProfilePage} />
           <Route path="/pos" component={CashierPOS} />
           <Route path="/api-test" component={ApiTestPage} />
+         
         </>
       )}
       <Route component={NotFound} />

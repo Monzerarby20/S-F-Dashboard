@@ -514,7 +514,7 @@ export default function BranchesList() {
             {/* قائمة الفروع */}
             {!branches || branches.length === 0 ? (
               <EmptyState
-                icon={<Building2 className="h-12 w-12" />}
+                icon={Building2}
                 title="لا توجد فروع"
                 description="لم يتم إنشاء أي فروع بعد"
                 action={
@@ -617,3 +617,9 @@ export default function BranchesList() {
     </div>
   );
 }
+
+
+
+
+
+

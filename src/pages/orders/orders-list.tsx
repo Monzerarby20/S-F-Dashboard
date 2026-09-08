@@ -13,7 +13,7 @@ import { Search, Eye, Plus } from "lucide-react";
 import Loading from "@/components/common/loading";
 import EmptyState from "@/components/common/empty-state";
 import { getAllOrders } from "@/services/order";
-
+import { ShoppingCart } from "lucide-react";
 export default function OrdersList() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -164,6 +164,7 @@ export default function OrdersList() {
             <Loading />
           ) : !filteredOrders?.length ? (
             <EmptyState
+              icon={ShoppingCart}
               title="لا توجد طلبات"
               description="لم يتم العثور على أي طلبات تطابق معايير البحث"
             />

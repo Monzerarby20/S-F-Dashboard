@@ -1,9 +1,10 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { ShoppingCart, LayoutDashboard, ShoppingBag, Package, Warehouse, ScanBarcode, Folder, BarChart3, LogOut, Building2, Users, Megaphone, RotateCcw,  Play, QrCode, Store, Settings, Bell } from "lucide-react";
+import { ShoppingCart, LayoutDashboard, ShoppingBag, Package, Warehouse, ScanBarcode, Folder, BarChart3, LogOut, Building2, Users, Megaphone, RotateCcw,  Play, QrCode, Store, Settings, Bell, Bike } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import {signOut} from "@/services/auth";
+import type { string } from "zod";
 const navigationItems = [
   {
     title: "لوحة التحكم",
@@ -40,7 +41,11 @@ const navigationItems = [
     href: "/users",
     icon: Users,
   },
- 
+  {
+    title: "المندوبين",
+    href: "/couriers",
+    icon: Bike,
+  },
   {
     title: "العروض والإعلانات",
     href: "/promotions",
@@ -72,11 +77,75 @@ const navigationItems = [
     icon: BarChart3,
   },
 ];
+const rolePermissions = {
+  owner: [
+    "/dashboard",
+    "/orders",
+    "/products",
+    "/departments",
+    "/stores",
+    "/branches",
+    "/users",
+    "/couriers",
+    "/promotions",
+    "/stories",
+    "/pos",
+    "/customers",
+    "/returns",
+    "/reports",
+    "/settings",
+    "/notifications",
+    "/profile",
+  ],
+
+  manager: [
+    "/dashboard",
+    "/orders",
+    "/products",
+    "/departments",
+    "/branches",
+    "/couriers",
+    "/promotions",
+    "/stories",
+    "/pos",
+    "/customers",
+    "/returns",
+    "/reports",
+    "/notifications",
+    "/profile",
+  ],
+
+  cashier: [
+    "/pos",
+    "/orders",
+    "/returns",
+    "/customers",
+    "/notifications",
+    "/profile",
+    "/couriers"
+  ],
+
+  employee: [
+    "/dashboard",
+    "/orders",
+    "/products",
+    "/customers",
+    "/returns",
+    "/notifications",
+    "/profile",
+  ],
+};
 
 export default function Sidebar() {
   const [location] = useLocation();
   const { user } = useAuth();
-
+  const allowedPages = rolePermissions[user?.role_display] ?? [];
+  console.log("Allow role", allowedPages)
+  console.log("user role",user.role)
+  console.log("user role",user)
+  const visibleNavigationItems = navigationItems.filter(
+  (item) => allowedPages.includes(item.href)
+);
   const handleLogout = () => {
     window.location.href = "/";
     signOut();
@@ -101,7 +170,7 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav className="mt-8 flex-1">
         <ul className="space-y-2 px-4">
-          {navigationItems.map((item) => {
+          {visibleNavigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = location === item.href || (item.href !== "/dashboard" && location.startsWith(item.href));
             

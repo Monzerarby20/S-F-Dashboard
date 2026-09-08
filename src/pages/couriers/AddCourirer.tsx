@@ -4,17 +4,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Switch } from "@/components/ui/switch";
-
 import { z } from "zod";
-import {
-  UserPlus,
-  Loader2,
-} from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { Bike, Loader2 } from "lucide-react";
 import axios from "axios";
-
 import { Button } from "@/components/ui/button";
-import { Card, CardContent,} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -31,22 +25,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import PageLayout from "@/components/layout/page-layout";
 import PageHeader from "@/components/layout/page-header";
 import Loading from "@/components/common/loading";
+import {
+  createCourier,
+  type CourierType,
+  type CreateCourierPayload,
+} from "./CouriersList";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-
-
-interface Role {
-  id: number;
-  name: string;
-  displayName: string;
-}
 
 interface StoreType {
   id: number;
@@ -61,34 +51,22 @@ interface Branch {
   phone: string | null;
 }
 
-const addUserSchema = z
-  .object({
-    first_name: z.string().min(2, "الاسم الأول مطلوب"),
-    last_name: z.string().min(2, "الاسم الأخير مطلوب"),
-    email: z.string().email("البريد الإلكتروني غير صحيح"),
-    phone: z.string().min(10, "رقم الهاتف مطلوب"),
-    
-    role: z.string().min(1, "يجب اختيار دور"),
-    store_id: z.number().optional(),
-    branch_id: z.number().optional(),
-    gender: z.enum(["male", "female"], { required_error: "الجنس مطلوب" }),
-    date_of_birth: z.string().min(1, "تاريخ الميلاد مطلوب"),
-    password: z.string().min(6, "كلمة السر يجب أن تكون 6 أحرف على الأقل"),
-    confirm_password: z.string().min(6, "تأكيد كلمة المرور مطلوب"),
-    is_active: z.boolean().default(true),
-  })
-  .refine((data) => data.password === data.confirm_password, {
-    message: "كلمتا المرور غير متطابقتان",
-    path: ["confirm_password"],
-  });
+const addCourierSchema = z.object({
+  first_name: z.string().min(2, "الاسم الأول مطلوب"),
+  last_name: z.string().min(2, "الاسم الأخير مطلوب"),
+  email: z.string().email("البريد الإلكتروني غير صحيح"),
+  phone: z.string().min(10, "رقم الهاتف مطلوب"),
+  store_id: z.number().optional(),
+  branch_id: z.number().optional(),
+  courier_type: z.enum(["store_courier", "platform_courier"], {
+    required_error: "يجب اختيار نوع المندوب",
+  }),
+  is_active: z.boolean().default(true),
+});
 
+type AddCourierForm = z.infer<typeof addCourierSchema>;
 
-type AddUserForm = z.infer<typeof addUserSchema>;
-
-
-
-
-export default function AddUserPage() {
+export default function AddCourierPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -98,63 +76,43 @@ export default function AddUserPage() {
   const [loadingStores, setLoadingStores] = useState(true);
   const [loadingBranches, setLoadingBranches] = useState(false);
 
-  const form = useForm<AddUserForm>({
-    resolver: zodResolver(addUserSchema),
+  const form = useForm<AddCourierForm>({
+    resolver: zodResolver(addCourierSchema),
     defaultValues: {
       first_name: "",
       last_name: "",
       email: "",
       phone: "",
-      
-      password: "",
-      confirm_password: "",
-      gender: "male",
-      date_of_birth: "",
-      role: "",
       store_id: undefined,
       branch_id: undefined,
+      courier_type: undefined,
       is_active: true,
     },
   });
 
-
-  // Fetch roles
-  const staticRoles = [
-    { id: 1, name: "owner", displayName: "مدير عام" },
-    { id: 2, name: "manager", displayName: "مدير فرع" },
-    { id: 3, name: "cashier", displayName: "كاشير" },
-    { id: 4, name: "employee", displayName: "موظف" },
-  ];
-
-
-  // Fetch stores
   useEffect(() => {
     const fetchStores = async () => {
       try {
         setLoadingStores(true);
         const token = localStorage.getItem("token");
         const url = `${BASE_URL}stores/stores/`;
-        console.debug("Fetching stores from:", url);
         const res = await axios.get(url, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
-        // Normalize response whether backend uses pagination or not:
-        const data = res.data && Array.isArray(res.data) ? res.data
-          : res.data && Array.isArray(res.data.results) ? res.data.results
-            : res.data && res.data.results ? res.data.results
+        const data =
+          res.data && Array.isArray(res.data)
+            ? res.data
+            : res.data && Array.isArray(res.data.results)
+              ? res.data.results
               : [];
 
-        if (!Array.isArray(data)) {
-          console.warn("Unexpected stores response shape:", res.data);
-        }
         setStores(data);
-        console.debug("Loaded stores:", data);
       } catch (err) {
         console.error("Error fetching stores:", err);
         toast({
           title: "تعذر تحميل المتاجر",
-          description: String(err?.message || err),
+          description: String((err as Error)?.message || err),
           variant: "destructive",
         });
       } finally {
@@ -164,54 +122,41 @@ export default function AddUserPage() {
     fetchStores();
   }, [toast]);
 
-
-
   const handleStoreChange = async (selectedStoreIdOrSlug: number | string | undefined) => {
-    // reset branch field
     form.setValue("branch_id", undefined);
     setBranches([]);
 
-    if (!selectedStoreIdOrSlug) {
-      return;
-    }
+    if (!selectedStoreIdOrSlug) return;
 
     try {
       setLoadingBranches(true);
+      const store = stores.find(
+        (s) => s.id === Number(selectedStoreIdOrSlug) || s.slug === selectedStoreIdOrSlug
+      );
+      if (!store) return;
 
-      // find store by id or slug
-      const store = stores.find(s => s.id === Number(selectedStoreIdOrSlug) || s.slug === selectedStoreIdOrSlug);
-      if (!store) {
-        console.warn("Selected store not found in stores list:", selectedStoreIdOrSlug, stores);
-        return;
-      }
-
-      // prefer slug if available
       const storeSlug = store.slug ?? store.id;
       const token = localStorage.getItem("token");
-      // Ensure BASE_URL ends with a single slash
       const base = BASE_URL?.endsWith("/") ? BASE_URL : `${BASE_URL}/`;
       const url = `${base}stores/stores/${storeSlug}/branches/`;
 
-      console.debug("Fetching branches from:", url);
       const res = await axios.get(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
-      const data = res.data && Array.isArray(res.data) ? res.data
-        : res.data && Array.isArray(res.data.results) ? res.data.results
-          : res.data && res.data.results ? res.data.results
+      const data =
+        res.data && Array.isArray(res.data)
+          ? res.data
+          : res.data && Array.isArray(res.data.results)
+            ? res.data.results
             : [];
 
-      if (!Array.isArray(data)) {
-        console.warn("Unexpected branches response shape:", res.data);
-      }
       setBranches(data);
-      console.debug("Loaded branches:", data);
     } catch (err) {
       console.error("Error fetching branches:", err);
       toast({
         title: "تعذر تحميل الفروع",
-        description: String(err?.message || err),
+        description: String((err as Error)?.message || err),
         variant: "destructive",
       });
     } finally {
@@ -219,81 +164,64 @@ export default function AddUserPage() {
     }
   };
 
-
-  const addUserMutation = useMutation({
-    mutationFn: async (userData: AddUserForm) => {
-      return await apiRequest("POST", "auth/register/", userData);
+  const addCourierMutation = useMutation({
+    mutationFn: async (courierData: CreateCourierPayload) => {
+      return await createCourier(courierData);
     },
     onSuccess: () => {
       toast({
-        title: "تم إنشاء المستخدم بنجاح",
-        description: "تم إضافة المستخدم الجديد إلى النظام",
+        title: "تم إنشاء المندوب بنجاح",
+        description: "تم إضافة المندوب الجديد إلى النظام",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      setLocation("/users");
+      queryClient.invalidateQueries({ queryKey: ["couriers"] });
+      setLocation("/couriers");
     },
-    onError: (error: any) => {
-      console.error("Add user error:", error);
+    onError: (error: Error) => {
       toast({
         title: "خطأ",
-        description: "حدث خطأ أثناء إضافة المستخدم" + String(error?.message || error),
+        description: error.message || "حدث خطأ أثناء إضافة المندوب",
         variant: "destructive",
       });
     },
   });
 
-  const onSubmit = (data: AddUserForm) => {
-    const payload = {
-      gender: data.gender,
+  const onSubmit = (data: AddCourierForm) => {
+    const payload: CreateCourierPayload = {
       first_name: data.first_name,
       last_name: data.last_name,
       email: data.email,
       phone: data.phone,
-      password: data.password,
-      confirm_password: data.confirm_password,
-      date_of_birth: data.date_of_birth,
-      role: data.role,
-      
+      courier_type: data.courier_type as CourierType,
       is_active: !!data.is_active,
       ...(data.store_id && { store_id: data.store_id }),
       ...(data.branch_id && { branch_id: data.branch_id }),
     };
-    
-      addUserMutation.mutate(payload);
-    console.log("Submitting user:", payload);
-
+    addCourierMutation.mutate(payload);
   };
 
- 
-
-  if (authLoading  || loadingStores) {
+  if (authLoading || loadingStores) {
     return <Loading />;
   }
-
 
   if (!user) {
     setLocation("/login");
     return null;
   }
 
-  
-
   return (
     <PageLayout maxWidth="2xl">
       <PageHeader
-        title="إضافة مستخدم جديد"
-        subtitle="إدخال بيانات مستخدم جديد في النظام"
-        onBack={() => setLocation("/users")}
-        backLabel="العودة لإدارة المستخدمين"
+        title="إضافة مندوب جديد"
+        subtitle="إدخال بيانات مندوب جديد في النظام"
+        onBack={() => setLocation("/couriers")}
+        backLabel="العودة للمندوبين"
       />
 
       <Card>
         <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {/* ========== BASIC INFO ========== */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* First Name */}
                 <FormField
                   control={form.control}
                   name="first_name"
@@ -307,7 +235,7 @@ export default function AddUserPage() {
                     </FormItem>
                   )}
                 />
-                {/* Last Name */}
+
                 <FormField
                   control={form.control}
                   name="last_name"
@@ -321,7 +249,7 @@ export default function AddUserPage() {
                     </FormItem>
                   )}
                 />
-                {/* Email */}
+
                 <FormField
                   control={form.control}
                   name="email"
@@ -335,7 +263,7 @@ export default function AddUserPage() {
                     </FormItem>
                   )}
                 />
-                {/* Phone */}
+
                 <FormField
                   control={form.control}
                   name="phone"
@@ -349,10 +277,7 @@ export default function AddUserPage() {
                     </FormItem>
                   )}
                 />
-                {/* Job Title */}
-                
 
-                {/* Store Select */}
                 <FormField
                   control={form.control}
                   name="store_id"
@@ -374,10 +299,10 @@ export default function AddUserPage() {
                           {loadingStores
                             ? "جاري تحميل المتاجر..."
                             : field.value
-                              ? stores.find((s) => s.id === Number(field.value))?.name || "اختر المتجر"
+                              ? stores.find((s) => s.id === Number(field.value))?.name ||
+                                "اختر المتجر"
                               : "اختر المتجر"}
                         </SelectTrigger>
-
                         <SelectContent>
                           {stores.length > 0 ? (
                             stores.map((store) => (
@@ -397,7 +322,6 @@ export default function AddUserPage() {
                   )}
                 />
 
-                {/* Branch Select */}
                 <FormField
                   control={form.control}
                   name="branch_id"
@@ -418,10 +342,9 @@ export default function AddUserPage() {
                               ? "جاري تحميل الفروع..."
                               : field.value
                                 ? branches.find((b) => b.id === Number(field.value))?.name ||
-                                "اختر الفرع"
+                                  "اختر الفرع"
                                 : "اختر الفرع"}
                         </SelectTrigger>
-
                         <SelectContent>
                           {branches.length > 0 ? (
                             branches.map((branch) => (
@@ -443,103 +366,29 @@ export default function AddUserPage() {
                   )}
                 />
 
-
-                {/* Gender Select */}
                 <FormField
                   control={form.control}
-                  name="gender"
+                  name="courier_type"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>الجنس</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value || ""}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="اختر الجنس" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="male">ذكر</SelectItem>
-                          <SelectItem value="female">أنثى</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Date of Birth */}
-                <FormField
-                  control={form.control}
-                  name="date_of_birth"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>تاريخ الميلاد</FormLabel>
-                      <Input type="date" {...field} />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Password */}
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>كلمة المرور</FormLabel>
-                      <Input type="password" {...field} />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Confirm Password */}
-                <FormField
-                  control={form.control}
-                  name="confirm_password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>تأكيد كلمة المرور</FormLabel>
-                      <Input type="password" {...field} />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-
-                {/* Role */}
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>الدور *</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange(value)}
-                        value={field.value?.toString() || ""}
-                      >
+                      <FormLabel>نوع المندوب *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="اختر الدور" />
+                            <SelectValue placeholder="اختر نوع المندوب" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {staticRoles.map((role) => (
-                            <SelectItem key={role.name} value={role.name}>
-                              {role.displayName}
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="store_courier">مندوب متجر</SelectItem>
+                          <SelectItem value="platform_courier">مندوب منصة</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
               </div>
 
-              {/* Active Status Toggle */}
               <FormField
                 control={form.control}
                 name="is_active"
@@ -550,11 +399,10 @@ export default function AddUserPage() {
                       <FormMessage />
                     </div>
                     <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked)}
-                    />
-
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => field.onChange(checked)}
+                      />
                     </FormControl>
                     <span className="text-sm ms-2">
                       {field.value ? "نشط ✅" : "غير نشط ❌"}
@@ -563,21 +411,15 @@ export default function AddUserPage() {
                 )}
               />
 
-
-              {/* Submit */}
               <div className="flex gap-3 pt-6 border-t">
-                <Button type="submit" disabled={addUserMutation.isPending}>
-                  {addUserMutation.isPending && (
+                <Button type="submit" disabled={addCourierMutation.isPending}>
+                  {addCourierMutation.isPending && (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   )}
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  حفظ المستخدم
+                  <Bike className="h-4 w-4 mr-2" />
+                  حفظ المندوب
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setLocation("/users")}
-                >
+                <Button type="button" variant="outline" onClick={() => setLocation("/couriers")}>
                   إلغاء
                 </Button>
               </div>
